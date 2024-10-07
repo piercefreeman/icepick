@@ -86,7 +86,7 @@ class DBConnection:
                     elif is_literal(select_raw):
                         # result_value.append(value[])
                         # TODO: We need to recover this somehow
-                        pass
+                        raise NotImplementedError
 
                 if len(result_value) == 1:
                     result_all.append(result_value[0])

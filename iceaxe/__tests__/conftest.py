@@ -26,7 +26,7 @@ async def db_connection():
     """)
     yield conn
     # Drop the test table after all tests
-    await conn.conn.fetch("DROP TABLE IF EXISTS userdemo")
+    # await conn.conn.fetch("DROP TABLE IF EXISTS userdemo")
     await conn.conn.close()
 
 
