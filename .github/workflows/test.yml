@@ -12,9 +12,25 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: iceaxe
+          POSTGRES_PASSWORD: mysecretpassword
+          POSTGRES_DB: iceaxe_test_db
+        ports:
+          - 5438:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v3
@@ -27,7 +43,14 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Run tests
-        run: make test
+        run: |
+          poetry run pytest -v --continue-on-collection-errors
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5438
+          POSTGRES_USER: iceaxe
+          POSTGRES_PASSWORD: mysecretpassword
+          POSTGRES_DB: iceaxe_test_db
 
   lint:
     runs-on: ubuntu-latest
