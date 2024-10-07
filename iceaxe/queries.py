@@ -5,7 +5,7 @@ from enum import Enum, auto
 from inspect import isclass
 from typing import Any, Generic, Literal, Type, TypeGuard, TypeVar, cast
 
-from envelope.db.base import DBFieldClassComparison, DBFieldClassDefinition, TableBase
+from iceaxe.base import DBFieldClassComparison, DBFieldClassDefinition, TableBase
 
 T = TypeVar("T")
 P = TypeVar("P")

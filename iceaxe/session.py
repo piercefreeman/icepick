@@ -12,18 +12,16 @@ from typing import (
 )
 
 import asyncpg
-from mountaineer import CoreDependencies, Depends
-from mountaineer.database import DatabaseConfig
 
-from envelope.db.base import TableBase
-from envelope.db.queries import (
+from iceaxe.base import TableBase
+from iceaxe.logging import LOGGER
+from iceaxe.queries import (
     QueryBuilder,
     QueryIdentifier,
     is_base_table,
     is_column,
     is_literal,
 )
-from envelope.logging import LOGGER
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -198,18 +196,3 @@ class DBConnection:
                 yield
         else:
             yield
-
-
-async def get_db_connection(
-    config: DatabaseConfig = Depends(
-        CoreDependencies.get_config_with_type(DatabaseConfig)
-    ),
-) -> DBConnection:
-    conn = await asyncpg.connect(
-        host=config.POSTGRES_HOST,
-        port=config.POSTGRES_PORT,
-        user=config.POSTGRES_USER,
-        password=config.POSTGRES_PASSWORD,
-        database=config.POSTGRES_DB,
-    )
-    return DBConnection(conn)

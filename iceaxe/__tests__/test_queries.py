@@ -1,5 +1,5 @@
-from envelope.db.base import Field, TableBase
-from envelope.db.queries import QueryBuilder
+from iceaxe.base import Field, TableBase
+from iceaxe.queries import QueryBuilder
 
 
 class UserDemo(TableBase):
