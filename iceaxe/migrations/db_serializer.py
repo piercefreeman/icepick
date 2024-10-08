@@ -1,10 +1,6 @@
 import re
 
-from mountaineer.database.session import AsyncSession
-from mountaineer.io import lru_cache_async
-from sqlalchemy import text
-from sqlalchemy.engine.result import Result
-
+from iceaxe.io import lru_cache_async
 from iceaxe.migrations.actions import (
     CheckConstraint,
     ColumnType,
@@ -20,6 +16,7 @@ from iceaxe.migrations.db_stubs import (
     DBType,
     DBTypePointer,
 )
+from iceaxe.session import DBConnection
 
 
 class DatabaseSerializer:
@@ -36,43 +33,40 @@ class DatabaseSerializer:
         # be a detected conflict and we try to remove the migration metadata.
         self.ignore_tables = ["migration_info"]
 
-    async def get_objects(self, session: AsyncSession):
+    async def get_objects(self, connection: DBConnection):
         tables = []
-        async for table, dependencies in self.get_tables(session):
+        async for table, dependencies in self.get_tables(connection):
             tables.append(table)
             yield table, dependencies
 
         for table in tables:
             async for column, dependencies in self.get_columns(
-                session, table.table_name
+                connection, table.table_name
             ):
                 yield column, dependencies + [table]
 
             async for constraint, dependencies in self.get_constraints(
-                session, table.table_name
+                connection, table.table_name
             ):
                 yield constraint, dependencies + [table]
 
             async for constraint, dependencies in self.get_indexes(
-                session, table.table_name
+                connection, table.table_name
             ):
                 yield constraint, dependencies + [table]
 
-    async def get_tables(self, session: AsyncSession):
-        result: Result = await session.exec(
-            text(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
-            )
+    async def get_tables(self, session: DBConnection):
+        result = await session.conn.fetch(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
         )
 
-        for row in result.fetchall():
-            if row.table_name in self.ignore_tables:
+        for row in result:
+            if row["table_name"] in self.ignore_tables:
                 continue
-            yield DBTable(table_name=row.table_name), []
+            yield DBTable(table_name=row["table_name"]), []
 
-    async def get_columns(self, session: AsyncSession, table_name: str):
-        query = text(
-            """
+    async def get_columns(self, session: DBConnection, table_name: str):
+        query = """
             SELECT
                 cols.column_name,
                 cols.udt_name,
@@ -88,58 +82,56 @@ class DatabaseSerializer:
                 AND cols.table_schema = elem_type.object_schema
                 AND cols.table_name = elem_type.object_name
                 AND cols.dtd_identifier = elem_type.collection_type_identifier
-            WHERE cols.table_name = :table_name
+            WHERE cols.table_name = $1
                 AND cols.table_schema = 'public';
 
         """
-        )
-        result = await session.exec(query, params={"table_name": table_name})
+        result = await session.conn.fetch(query, table_name)
 
         column_dependencies: list[DBObject] = []
-
-        for row in result.fetchall():
+        for row in result:
             column_is_list = False
 
-            if row.data_type == "USER-DEFINED":
+            if row["data_type"] == "USER-DEFINED":
                 column_type, column_type_deps = await self.fetch_custom_type(
-                    session, row.udt_name
+                    session, row["udt_name"]
                 )
                 column_dependencies.append(column_type)
                 yield column_type, column_type_deps
-            elif row.data_type == "ARRAY":
+            elif row["data_type"] == "ARRAY":
                 column_is_list = True
-                column_type = ColumnType(row.element_type)
+                column_type = ColumnType(row["element_type"])
             else:
-                column_type = ColumnType(row.data_type)
+                column_type = ColumnType(row["data_type"])
 
             yield (
                 DBColumn(
                     table_name=table_name,
-                    column_name=row.column_name,
+                    column_name=row["column_name"],
                     column_type=(
                         DBTypePointer(name=column_type.name)
                         if isinstance(column_type, DBType)
                         else column_type
                     ),
                     column_is_list=column_is_list,
-                    nullable=(row.is_nullable == "YES"),
+                    nullable=(row["is_nullable"] == "YES"),
                 ),
                 column_dependencies,
             )
 
-    async def get_constraints(self, session: AsyncSession, table_name: str):
-        query = text(
-            """
+    async def get_constraints(self, session: DBConnection, table_name: str):
+        query = """
             SELECT conname, contype, conrelid, confrelid, conkey, confkey
             FROM pg_constraint
             INNER JOIN pg_class ON pg_constraint.conrelid = pg_class.oid
-            WHERE pg_class.relname = :table_name
+            WHERE pg_class.relname = $1
         """
-        )
-        result = await session.exec(query, params={"table_name": table_name})
-        for row in result.fetchall():
+        result = await session.conn.fetch(query, table_name)
+        for row in result:
             contype = (
-                row.contype.decode() if isinstance(row.contype, bytes) else row.contype
+                row["contype"].decode()
+                if isinstance(row["contype"], bytes)
+                else row["contype"]
             )
             # Determine type
             if contype == "p":
@@ -151,10 +143,10 @@ class DatabaseSerializer:
             elif contype == "c":
                 ctype = ConstraintType.CHECK
             else:
-                raise ValueError(f"Unknown constraint type: {row.contype}")
+                raise ValueError(f"Unknown constraint type: {row['contype']}")
 
             columns = await self.fetch_constraint_columns(
-                session, row.conkey, table_name
+                session, row["conkey"], table_name
             )
 
             # Handle foreign key specifics
@@ -163,38 +155,35 @@ class DatabaseSerializer:
 
             if ctype == ConstraintType.FOREIGN_KEY:
                 # Fetch target table
-                fk_query = text("SELECT relname FROM pg_class WHERE oid = :oid")
-                fk_result = await session.exec(fk_query, params={"oid": row.confrelid})
-                target_table = fk_result.scalar_one()
+                fk_query = "SELECT relname FROM pg_class WHERE oid = $1"
+                fk_result = await session.conn.fetch(fk_query, row["confrelid"])
+                target_table = fk_result[0]["relname"]
 
                 # Fetch target columns
-                target_columns_query = text(
-                    """
-                    SELECT a.attname
+                target_columns_query = """
+                    SELECT a.attname AS column_name
                     FROM pg_attribute a
-                    WHERE a.attrelid = :oid AND a.attnum = ANY(:conkey)
+                    WHERE a.attrelid = $1 AND a.attnum = ANY($2)
                 """
-                )
-                target_columns_result = await session.exec(
+                target_columns_result = await session.conn.fetch(
                     target_columns_query,
-                    params={"oid": row.confrelid, "conkey": row.confkey},
+                    row["confrelid"],
+                    row["confkey"],
                 )
-                target_columns = {row[0] for row in target_columns_result}
+                target_columns = {row["column_name"] for row in target_columns_result}
 
                 fk_constraint = ForeignKeyConstraint(
                     target_table=target_table, target_columns=frozenset(target_columns)
                 )
             elif ctype == ConstraintType.CHECK:
                 # Retrieve the check constraint expression
-                check_query = text(
-                    """
+                check_query = """
                     SELECT pg_get_constraintdef(c.oid) AS consrc
                     FROM pg_constraint c
-                    WHERE c.oid = :oid
+                    WHERE c.oid = $1
                     """
-                )
-                check_result = await session.exec(check_query, params={"oid": row.oid})
-                check_constraint_expr = check_result.scalar_one()
+                check_result = await session.conn.fetch(check_query, row["oid"])
+                check_constraint_expr = check_result[0]["consrc"]
 
                 check_constraint = CheckConstraint(
                     check_condition=check_constraint_expr,
@@ -203,7 +192,7 @@ class DatabaseSerializer:
             yield (
                 DBConstraint(
                     table_name=table_name,
-                    constraint_name=row.conname,
+                    constraint_name=row["conname"],
                     columns=frozenset(columns),
                     constraint_type=ctype,
                     foreign_key_constraint=fk_constraint,
@@ -216,25 +205,21 @@ class DatabaseSerializer:
                 ],
             )
 
-    async def get_indexes(self, session: AsyncSession, table_name: str):
+    async def get_indexes(self, session: DBConnection, table_name: str):
         # Query for indexes, excluding primary keys
-        index_query = text(
-            """
+        index_query = """
             SELECT i.indexname, i.indexdef
             FROM pg_indexes i
             LEFT JOIN pg_constraint c ON c.conname = i.indexname
-            WHERE i.tablename = :table_name
+            WHERE i.tablename = $1
             AND c.conname IS NULL
             AND i.indexdef NOT ILIKE '%UNIQUE INDEX%'
         """
-        )
-        index_result = await session.exec(
-            index_query, params={"table_name": table_name}
-        )
+        index_result = await session.conn.fetch(index_query, table_name)
 
         for row in index_result:
-            index_name = row.indexname
-            index_def = row.indexdef
+            index_name = row["indexname"]
+            index_def = row["indexdef"]
 
             # Extract columns from index definition
             columns_match = re.search(r"\((.*?)\)", index_def)
@@ -259,37 +244,34 @@ class DatabaseSerializer:
                 ],
             )
 
-    async def fetch_constraint_columns(self, session: AsyncSession, conkey, table_name):
+    async def fetch_constraint_columns(self, session: DBConnection, conkey, table_name):
         # Assume conkey is a list of column indices; this function would fetch actual column names
-        query = text(
-            "SELECT attname FROM pg_attribute WHERE attnum = ANY(:conkey) AND attrelid = (SELECT oid FROM pg_class WHERE relname = :table_name)"
-        )
-        result = await session.exec(
-            query, params={"conkey": conkey, "table_name": table_name}
-        )
-        return list(result.scalars().all())
+        query = "SELECT attname FROM pg_attribute WHERE attnum = ANY($1) AND attrelid = (SELECT oid FROM pg_class WHERE relname = $2)"
+        return [
+            row["attname"]
+            for row in await session.conn.fetch(query, conkey, table_name)
+        ]
 
     # Enum values are not expected to change within one session, cache the same
     # type if we see it within the same session
     @lru_cache_async(maxsize=None)
-    async def fetch_custom_type(self, session: AsyncSession, type_name: str):
+    async def fetch_custom_type(self, session: DBConnection, type_name: str):
         # Get the values in this enum
-        values_query = text(
-            """
+        values_query = """
         SELECT enumlabel
         FROM pg_enum
         JOIN pg_type ON pg_enum.enumtypid = pg_type.oid
-        WHERE pg_type.typname = :type_name
+        WHERE pg_type.typname = $1
         """
+        values = frozenset(
+            [
+                row["enumlabel"]
+                for row in await session.conn.fetch(values_query, type_name)
+            ]
         )
-        values_result = await session.exec(
-            values_query, params={"type_name": type_name}
-        )
-        values = frozenset(values_result.scalars().all())
 
         # Determine all the columns where this type is referenced
-        reference_columns_query = text(
-            """
+        reference_columns_query = """
             SELECT
                 n.nspname AS schema_name,
                 c.relname AS table_name,
@@ -299,18 +281,17 @@ class DatabaseSerializer:
             JOIN pg_catalog.pg_attribute a ON a.atttypid = t.oid
             JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
             WHERE
-                t.typname = :type_name
+                t.typname = $1
                 AND a.attnum > 0
                 AND NOT a.attisdropped;
             """
-        )
-        reference_columns_results = await session.exec(
-            reference_columns_query, params={"type_name": type_name}
+        reference_columns_results = await session.conn.fetch(
+            reference_columns_query, type_name
         )
         reference_columns = frozenset(
             {
-                (row.table_name, row.column_name)
-                for row in reference_columns_results.fetchall()
+                (row["table_name"], row["column_name"])
+                for row in reference_columns_results
             }
         )
         return DBType(

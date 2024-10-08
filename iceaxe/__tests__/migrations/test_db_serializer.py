@@ -1,13 +1,6 @@
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, StrEnum
 
 import pytest
-import sqlalchemy as sa
-from mountaineer.compat import StrEnum
-from mountaineer.database.session import AsyncSession
-from pydantic import create_model
-from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlmodel import Field, SQLModel
-from sqlmodel.main import FieldInfo
 
 from iceaxe.migrations.actions import (
     ColumnType,
@@ -25,6 +18,7 @@ from iceaxe.migrations.db_stubs import (
     DBType,
     DBTypePointer,
 )
+from iceaxe.session import DBConnection
 
 
 class ValueEnumStandard(Enum):
@@ -49,20 +43,24 @@ def compare_db_objects(
     dependencies list is un-hashable.
 
     """
-    return sorted(calculated, key=lambda x: x[0].representation()) == sorted(
+    assert sorted(calculated, key=lambda x: x[0].representation()) == sorted(
         expected, key=lambda x: x[0].representation()
     )
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "field_name, annotation, field_info, expected_db_objects",
+    "sql_text, expected_db_objects",
     [
         # Enum
         (
-            "standard_enum",
-            ValueEnumStandard,
-            Field(),
+            """
+            CREATE TYPE valueenumstandard AS ENUM ('A');
+            CREATE TABLE exampledbmodel (
+                id SERIAL PRIMARY KEY,
+                standard_enum valueenumstandard NOT NULL
+            );
+            """,
             [
                 (
                     DBType(
@@ -99,87 +97,14 @@ def compare_db_objects(
                 ),
             ],
         ),
-        (
-            "str_enum",
-            ValueEnumStr,
-            Field(),
-            [
-                (
-                    DBType(
-                        name="valueenumstr",
-                        values=frozenset({"A"}),
-                        reference_columns=frozenset({("exampledbmodel", "str_enum")}),
-                    ),
-                    [
-                        DBTable(table_name="exampledbmodel"),
-                    ],
-                ),
-                (
-                    DBColumn(
-                        table_name="exampledbmodel",
-                        column_name="str_enum",
-                        column_type=DBTypePointer(
-                            name="valueenumstr",
-                        ),
-                        column_is_list=False,
-                        nullable=False,
-                    ),
-                    [
-                        DBType(
-                            name="valueenumstr",
-                            values=frozenset({"A"}),
-                            reference_columns=frozenset(
-                                {("exampledbmodel", "str_enum")}
-                            ),
-                        ),
-                        DBTable(table_name="exampledbmodel"),
-                    ],
-                ),
-            ],
-        ),
-        (
-            "int_enum",
-            ValueEnumInt,
-            Field(),
-            [
-                (
-                    DBType(
-                        name="valueenumint",
-                        values=frozenset({"A"}),
-                        reference_columns=frozenset({("exampledbmodel", "int_enum")}),
-                    ),
-                    [
-                        DBTable(table_name="exampledbmodel"),
-                    ],
-                ),
-                (
-                    DBColumn(
-                        table_name="exampledbmodel",
-                        column_name="int_enum",
-                        column_type=DBTypePointer(
-                            name="valueenumint",
-                        ),
-                        column_is_list=False,
-                        nullable=False,
-                    ),
-                    [
-                        DBType(
-                            name="valueenumint",
-                            values=frozenset({"A"}),
-                            reference_columns=frozenset(
-                                {("exampledbmodel", "int_enum")}
-                            ),
-                        ),
-                        DBTable(table_name="exampledbmodel"),
-                    ],
-                ),
-            ],
-        ),
         # Nullable type
         (
-            "was_nullable",
-            str | None,
-            Field(),
+            """
+            CREATE TABLE exampledbmodel (
+                id SERIAL PRIMARY KEY,
+                was_nullable VARCHAR
+            );
+            """,
             [
                 (
                     DBColumn(
@@ -197,9 +122,12 @@ def compare_db_objects(
         ),
         # List types
         (
-            "array_list",
-            list[str],
-            Field(sa_column=sa.Column(sa.ARRAY(sa.String), nullable=False)),
+            """
+            CREATE TABLE exampledbmodel (
+                id SERIAL PRIMARY KEY,
+                array_list VARCHAR[] NOT NULL
+            );
+            """,
             [
                 (
                     DBColumn(
@@ -218,33 +146,17 @@ def compare_db_objects(
     ],
 )
 async def test_simple_db_serializer(
-    field_name: str,
-    annotation: type,
-    field_info: FieldInfo,
+    sql_text: str,
     expected_db_objects: list[tuple[DBObject, list[DBObject | DBObjectPointer]]],
-    db_engine: AsyncEngine,
-    db_session: AsyncSession,
+    db_connection: DBConnection,
     clear_all_database_objects,
 ):
-    ExampleDBModel = create_model(  # type: ignore
-        "ExampleDBModel",
-        __base__=SQLModel,
-        __cls_kwargs__={"table": True},
-        **{  # type: ignore
-            # Requires the ID to be specified for the model to be constructed correctly
-            "id": (int, Field(primary_key=True)),
-            field_name: (annotation, field_info),
-        },
-    )
-    assert ExampleDBModel.table_name
-
     # Create this new database
-    async with db_engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+    await db_connection.conn.execute(sql_text)
 
     db_serializer = DatabaseSerializer()
     db_objects = []
-    async for values in db_serializer.get_objects(db_session):
+    async for values in db_serializer.get_objects(db_connection):
         db_objects.append(values)
 
     # Table and primary key are created for each model
@@ -280,29 +192,29 @@ async def test_simple_db_serializer(
         ),
     ]
 
-    assert compare_db_objects(db_objects, base_db_objects + expected_db_objects)
+    compare_db_objects(db_objects, base_db_objects + expected_db_objects)
 
 
 @pytest.mark.asyncio
 async def test_db_serializer_foreign_key(
-    db_engine: AsyncEngine,
-    db_session: AsyncSession,
+    db_connection: DBConnection,
     clear_all_database_objects,
 ):
-    class ForeignModel(SQLModel, table=True):
-        id: int = Field(primary_key=True)
-
-    class ExampleDBModel(SQLModel, table=True):
-        id: int = Field(primary_key=True)
-        foreign_key_id: int = Field(foreign_key="foreignmodel.id")
-
-    # Create this new database
-    async with db_engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
+    await db_connection.conn.execute(
+        """
+        CREATE TABLE foreignmodel (
+            id SERIAL PRIMARY KEY
+        );
+        CREATE TABLE exampledbmodel (
+            id SERIAL PRIMARY KEY,
+            foreign_key_id INTEGER REFERENCES foreignmodel(id) NOT NULL
+        );
+        """
+    )
 
     db_serializer = DatabaseSerializer()
     db_objects = []
-    async for values in db_serializer.get_objects(db_session):
+    async for values in db_serializer.get_objects(db_connection):
         db_objects.append(values)
 
     expected_db_objects: list[tuple[DBObject, list[DBObject | DBObjectPointer]]] = [
@@ -398,4 +310,4 @@ async def test_db_serializer_foreign_key(
         ),
     ]
 
-    assert compare_db_objects(db_objects, expected_db_objects)
+    compare_db_objects(db_objects, expected_db_objects)
