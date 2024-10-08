@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
 from typing import Any, Generic, Literal, Type, TypeVar
 
 from iceaxe.base import (
@@ -29,16 +28,8 @@ P = TypeVar("P")
 QueryType = TypeVar("QueryType", bound=Literal["SELECT", "INSERT", "UPDATE", "DELETE"])
 
 
-class JoinType(Enum):
-    INNER = "INNER"
-    LEFT = "LEFT"
-    RIGHT = "RIGHT"
-    FULL = "FULL"
-
-
-class OrderDirection(Enum):
-    ASC = "ASC"
-    DESC = "DESC"
+JoinType = Literal["INNER", "LEFT", "RIGHT", "FULL"]
+OrderDirection = Literal["ASC", "DESC"]
 
 
 class QueryBuilder(Generic[P, QueryType]):
@@ -148,17 +139,15 @@ class QueryBuilder(Generic[P, QueryType]):
         self.where_conditions += validated_comparisons
         return self
 
-    def order_by(self, field: Any, direction: OrderDirection = OrderDirection.ASC):
+    def order_by(self, field: Any, direction: OrderDirection = "ASC"):
         if not is_column(field):
             raise ValueError(f"Invalid order by field: {field}")
 
         field_token = field_to_literal(field)
-        self.order_by_clauses.append(f"{field_token} {direction.value}")
+        self.order_by_clauses.append(f"{field_token} {direction}")
         return self
 
-    def join(
-        self, table: Type[TableBase], on: bool, join_type: JoinType = JoinType.INNER
-    ):
+    def join(self, table: Type[TableBase], on: bool, join_type: JoinType = "INNER"):
         if not is_comparison(on):
             raise ValueError(
                 f"Invalid join condition: {on}, should be MyTable.column == OtherTable.column"
@@ -169,9 +158,7 @@ class QueryBuilder(Generic[P, QueryType]):
         comparison = QueryLiteral(on.comparison.value)
         on_right = field_to_literal(on.right)
 
-        join_sql = (
-            f"{join_type.value} JOIN {table_name} ON {on_left} {comparison} {on_right}"
-        )
+        join_sql = f"{join_type} JOIN {table_name} ON {on_left} {comparison} {on_right}"
         self.join_clauses.append(join_sql)
         return self
 

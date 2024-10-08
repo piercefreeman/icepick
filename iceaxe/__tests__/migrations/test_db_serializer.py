@@ -21,18 +21,6 @@ from iceaxe.migrations.db_stubs import (
 from iceaxe.session import DBConnection
 
 
-class ValueEnumStandard(Enum):
-    A = "A"
-
-
-class ValueEnumStr(StrEnum):
-    A = "A"
-
-
-class ValueEnumInt(IntEnum):
-    A = 1
-
-
 def compare_db_objects(
     calculated: list[tuple[DBObject, list[DBObject | DBObjectPointer]]],
     expected: list[tuple[DBObject, list[DBObject | DBObjectPointer]]],
@@ -46,6 +34,18 @@ def compare_db_objects(
     assert sorted(calculated, key=lambda x: x[0].representation()) == sorted(
         expected, key=lambda x: x[0].representation()
     )
+
+
+class ValueEnumStandard(Enum):
+    A = "A"
+
+
+class ValueEnumStr(StrEnum):
+    A = "A"
+
+
+class ValueEnumInt(IntEnum):
+    A = 1
 
 
 @pytest.mark.asyncio

@@ -13,3 +13,7 @@ class PostgresFieldBase(BaseModel):
 
 class PostgresDateTime(PostgresFieldBase):
     timezone: bool = False
+
+
+class PostgresTime(PostgresFieldBase):
+    timezone: bool = False

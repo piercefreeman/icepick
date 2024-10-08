@@ -217,4 +217,5 @@ network connections in the first place.
 
 ## TODOs
 
+- [ ] Properly resolve select(Type[TableBase]) to return an instance of TableBase.
 - [ ] Additional documentation with usage examples.

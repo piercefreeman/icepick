@@ -2,11 +2,11 @@ import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
 from iceaxe.functions import func
-from iceaxe.queries import JoinType, OrderDirection, QueryBuilder
+from iceaxe.queries import QueryBuilder
 from iceaxe.session import (
     DBConnection,
 )
-from iceaxe.typing import col
+from iceaxe.typing import column
 
 #
 # Insert / Update with ORM objects
@@ -212,11 +212,7 @@ async def test_select_with_limit_and_offset(db_connection: DBConnection):
     await db_connection.insert(users)
 
     query = (
-        QueryBuilder()
-        .select(UserDemo)
-        .order_by(UserDemo.id, OrderDirection.ASC)
-        .limit(2)
-        .offset(1)
+        QueryBuilder().select(UserDemo).order_by(UserDemo.id, "ASC").limit(2).offset(1)
     )
     result = await db_connection.exec(query)
     assert len(result) == 2
@@ -236,7 +232,9 @@ async def test_select_with_multiple_where_conditions(db_connection: DBConnection
     query = (
         QueryBuilder()
         .select(UserDemo)
-        .where(col(UserDemo.name).like("%Doe%"), UserDemo.email != "john@example.com")
+        .where(
+            column(UserDemo.name).like("%Doe%"), UserDemo.email != "john@example.com"
+        )
     )
     result = await db_connection.exec(query)
     assert len(result) == 1
@@ -256,8 +254,8 @@ async def test_select_with_order_by_multiple_columns(db_connection: DBConnection
     query = (
         QueryBuilder()
         .select(UserDemo)
-        .order_by(UserDemo.name, OrderDirection.ASC)
-        .order_by(UserDemo.email, OrderDirection.ASC)
+        .order_by(UserDemo.name, "ASC")
+        .order_by(UserDemo.email, "ASC")
     )
     result = await db_connection.exec(query)
     assert len(result) == 4
@@ -305,9 +303,9 @@ async def test_select_with_left_join(db_connection: DBConnection):
     query = (
         QueryBuilder()
         .select((UserDemo.name, func.count(ArtifactDemo.id)))
-        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, JoinType.LEFT)
+        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, "LEFT")
         .group_by(UserDemo.name)
-        .order_by(UserDemo.name, OrderDirection.ASC)
+        .order_by(UserDemo.name, "ASC")
     )
     result = await db_connection.exec(query)
     assert len(result) == 2
@@ -350,7 +348,7 @@ async def test_select_with_distinct(db_connection: DBConnection):
     query = (
         QueryBuilder()
         .select(func.distinct(UserDemo.name))
-        .order_by(UserDemo.name, OrderDirection.ASC)
+        .order_by(UserDemo.name, "ASC")
     )
     result = await db_connection.exec(query)
     assert result == ["Jane", "John"]

@@ -49,7 +49,7 @@ def is_function_metadata_comparison(obj: Any) -> TypeGuard[FunctionMetadataCompa
     return isinstance(obj, FunctionMetadataComparison)
 
 
-def col(obj: Any):
+def column(obj: Any):
     if not is_column(obj):
         raise ValueError(f"Invalid column: {obj}")
     return obj

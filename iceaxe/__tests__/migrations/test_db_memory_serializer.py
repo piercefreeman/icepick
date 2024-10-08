@@ -1,8 +1,12 @@
+from datetime import date, datetime, time, timedelta
 from enum import Enum
+from typing import Sequence
 from unittest.mock import ANY
 from uuid import UUID
 
 import pytest
+from pydantic import create_model
+from pydantic.fields import FieldInfo
 
 from iceaxe import Field, TableBase
 from iceaxe.migrations.actions import (
@@ -16,10 +20,28 @@ from iceaxe.migrations.db_memory_serializer import DatabaseMemorySerializer
 from iceaxe.migrations.db_stubs import (
     DBColumn,
     DBConstraint,
+    DBObject,
+    DBObjectPointer,
     DBTable,
     DBType,
     DBTypePointer,
 )
+from iceaxe.postgres import PostgresDateTime, PostgresTime
+
+
+def compare_db_objects(
+    calculated: Sequence[tuple[DBObject, Sequence[DBObject | DBObjectPointer]]],
+    expected: Sequence[tuple[DBObject, Sequence[DBObject | DBObjectPointer]]],
+):
+    """
+    Helper function to compare lists of DBObjects. The order doesn't actually matter
+    for downstream uses, but we can't do a simple equality check with a set because the
+    dependencies list is un-hashable.
+
+    """
+    assert sorted(calculated, key=lambda x: x[0].representation()) == sorted(
+        expected, key=lambda x: x[0].representation()
+    )
 
 
 @pytest.mark.asyncio
@@ -653,3 +675,197 @@ def test_enum_column_assignment(clear_all_database_objects):
             ],
         ),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field_name, annotation, field_info, expected_db_objects",
+    [
+        # datetime, default no typehinting
+        (
+            "standard_datetime",
+            datetime,
+            Field(),
+            [
+                (
+                    DBColumn(
+                        table_name="exampledbmodel",
+                        column_name="standard_datetime",
+                        column_type=ColumnType.TIMESTAMP,
+                        column_is_list=False,
+                        nullable=False,
+                    ),
+                    [
+                        DBTable(table_name="exampledbmodel"),
+                    ],
+                ),
+            ],
+        ),
+        # datetime, specified with field arguments
+        (
+            "standard_datetime",
+            datetime,
+            Field(postgres_config=PostgresDateTime(timezone=True)),
+            [
+                (
+                    DBColumn(
+                        table_name="exampledbmodel",
+                        column_name="standard_datetime",
+                        column_type=ColumnType.TIMESTAMP_WITH_TIME_ZONE,
+                        column_is_list=False,
+                        nullable=False,
+                    ),
+                    [
+                        DBTable(table_name="exampledbmodel"),
+                    ],
+                ),
+            ],
+        ),
+        # date
+        (
+            "standard_date",
+            date,
+            Field(),
+            [
+                (
+                    DBColumn(
+                        table_name="exampledbmodel",
+                        column_name="standard_date",
+                        column_type=ColumnType.DATE,
+                        column_is_list=False,
+                        nullable=False,
+                    ),
+                    [
+                        DBTable(table_name="exampledbmodel"),
+                    ],
+                ),
+            ],
+        ),
+        # time, no typehinting
+        (
+            "standard_time",
+            time,
+            Field(),
+            [
+                (
+                    DBColumn(
+                        table_name="exampledbmodel",
+                        column_name="standard_time",
+                        column_type=ColumnType.TIME,
+                        column_is_list=False,
+                        nullable=False,
+                    ),
+                    [
+                        DBTable(table_name="exampledbmodel"),
+                    ],
+                ),
+            ],
+        ),
+        # time, specified with field arguments
+        (
+            "standard_time",
+            time,
+            Field(postgres_config=PostgresTime(timezone=True)),
+            [
+                (
+                    DBColumn(
+                        table_name="exampledbmodel",
+                        column_name="standard_time",
+                        column_type=ColumnType.TIME_WITH_TIME_ZONE,
+                        column_is_list=False,
+                        nullable=False,
+                    ),
+                    [
+                        DBTable(table_name="exampledbmodel"),
+                    ],
+                ),
+            ],
+        ),
+        # timedelta
+        (
+            "standard_timedelta",
+            timedelta,
+            Field(),
+            [
+                (
+                    DBColumn(
+                        table_name="exampledbmodel",
+                        column_name="standard_timedelta",
+                        column_type=ColumnType.INTERVAL,
+                        column_is_list=False,
+                        nullable=False,
+                    ),
+                    [
+                        DBTable(table_name="exampledbmodel"),
+                    ],
+                ),
+            ],
+        ),
+    ],
+)
+async def test_datetimes(
+    field_name: str,
+    annotation: type,
+    field_info: FieldInfo,
+    expected_db_objects: list[tuple[DBObject, list[DBObject | DBObjectPointer]]],
+):
+    ExampleDBModel = create_model(  # type: ignore
+        "ExampleDBModel",
+        __base__=TableBase,
+        **{  # type: ignore
+            # Requires the ID to be specified for the model to be constructed correctly
+            "id": (int, Field(primary_key=True)),
+            field_name: (annotation, field_info),
+        },
+    )
+
+    migrator = DatabaseMemorySerializer()
+    db_objects = list(migrator.delegate([ExampleDBModel]))
+
+    # Table and primary key are created for each model
+    base_db_objects: list[tuple[DBObject, list[DBObject | DBObjectPointer]]] = [
+        (
+            DBTable(table_name="exampledbmodel"),
+            [],
+        ),
+        (
+            DBColumn(
+                table_name="exampledbmodel",
+                column_name="id",
+                column_type=ColumnType.INTEGER,
+                column_is_list=False,
+                nullable=False,
+            ),
+            [
+                DBTable(table_name="exampledbmodel"),
+            ],
+        ),
+        (
+            DBConstraint(
+                table_name="exampledbmodel",
+                constraint_name="exampledbmodel_pkey",
+                columns=frozenset({"id"}),
+                constraint_type=ConstraintType.PRIMARY_KEY,
+                foreign_key_constraint=None,
+            ),
+            [
+                DBTable(table_name="exampledbmodel"),
+                DBColumn(
+                    table_name="exampledbmodel",
+                    column_name="id",
+                    column_type=ColumnType.INTEGER,
+                    column_is_list=False,
+                    nullable=False,
+                ),
+                DBColumn.model_construct(
+                    table_name="exampledbmodel",
+                    column_name=field_name,
+                    column_type=ANY,
+                    column_is_list=False,
+                    nullable=False,
+                ),
+            ],
+        ),
+    ]
+
+    compare_db_objects(db_objects, base_db_objects + expected_db_objects)

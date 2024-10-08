@@ -2,7 +2,7 @@ import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
 from iceaxe.functions import func
-from iceaxe.queries import JoinType, OrderDirection, QueryBuilder
+from iceaxe.queries import QueryBuilder
 
 
 def test_select():
@@ -54,9 +54,7 @@ def test_multiple_where_conditions():
 
 
 def test_order_by():
-    new_query = (
-        QueryBuilder().select(UserDemo.id).order_by(UserDemo.id, OrderDirection.DESC)
-    )
+    new_query = QueryBuilder().select(UserDemo.id).order_by(UserDemo.id, "DESC")
     assert new_query.build() == (
         'SELECT "userdemo"."id" FROM "userdemo" ORDER BY "userdemo"."id" DESC',
         [],
@@ -67,8 +65,8 @@ def test_multiple_order_by():
     new_query = (
         QueryBuilder()
         .select(UserDemo.id)
-        .order_by(UserDemo.id, OrderDirection.DESC)
-        .order_by(UserDemo.name, OrderDirection.ASC)
+        .order_by(UserDemo.id, "DESC")
+        .order_by(UserDemo.name, "ASC")
     )
     assert new_query.build() == (
         'SELECT "userdemo"."id" FROM "userdemo" ORDER BY "userdemo"."id" DESC, "userdemo"."name" ASC',
@@ -92,7 +90,7 @@ def test_left_join():
     new_query = (
         QueryBuilder()
         .select((UserDemo.id, ArtifactDemo.title))
-        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, JoinType.LEFT)
+        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, "LEFT")
     )
     assert new_query.build() == (
         'SELECT "userdemo"."id", "artifactdemo"."title" FROM "userdemo" LEFT JOIN artifactdemo ON "userdemo"."id" = "artifactdemo"."user_id"',
