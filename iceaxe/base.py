@@ -113,7 +113,7 @@ class ComparisonType(StrEnum):
     GE = ">="
     IN = "IN"
     NOT_IN = "NOT IN"
-    CONTAINS = "CONTAINS"
+    LIKE = "LIKE"
 
 
 @dataclass
@@ -140,24 +140,24 @@ class DBFieldClassDefinition:
     def __ge__(self, other):
         return self._compare(ComparisonType.GE, other)
 
-    def in_(self, other):
-        return self._compare(ComparisonType.IN, other)
+    def in_(self, other) -> bool:
+        return self._compare(ComparisonType.IN, other)  # type: ignore
 
-    def not_in(self, other):
-        return self._compare(ComparisonType.NOT_IN, other)
+    def not_in(self, other) -> bool:
+        return self._compare(ComparisonType.NOT_IN, other)  # type: ignore
 
-    def contains(self, other):
-        return self._compare(ComparisonType.CONTAINS, other)
+    def like(self, other) -> bool:
+        return self._compare(ComparisonType.LIKE, other)  # type: ignore
 
     def _compare(self, comparison: ComparisonType, other: Any):
-        return DBFieldClassComparison(field=self, comparison=comparison, value=other)
+        return DBFieldClassComparison(left=self, comparison=comparison, right=other)
 
 
 @dataclass
 class DBFieldClassComparison:
-    field: DBFieldClassDefinition
+    left: DBFieldClassDefinition
     comparison: ComparisonType
-    value: DBFieldClassDefinition | Any
+    right: DBFieldClassDefinition | Any
 
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(PydanticField,))

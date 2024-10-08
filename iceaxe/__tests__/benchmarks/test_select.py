@@ -20,6 +20,7 @@ async def fetch_users_raw(conn: asyncpg.Connection) -> list[Any]:
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration_tests
 async def test_benchmark(db_connection: DBConnection, request):
     num_users = 500_000
     num_loops = 10
