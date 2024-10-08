@@ -83,10 +83,10 @@ def test_not_in(db_field):
 
 
 def test_contains(db_field):
-    result = db_field.contains("test")
+    result = db_field.like("test")
     assert isinstance(result, DBFieldClassComparison)
     assert result.field == db_field
-    assert result.comparison == ComparisonType.CONTAINS
+    assert result.comparison == ComparisonType.LIKE
     assert result.value == "test"
 
 
@@ -156,7 +156,7 @@ def test_comparison_type_enum():
     assert ComparisonType.GE == ">="
     assert ComparisonType.IN == "IN"
     assert ComparisonType.NOT_IN == "NOT IN"
-    assert ComparisonType.CONTAINS == "CONTAINS"
+    assert ComparisonType.LIKE == "LIKE"
 
 
 # Test case for DBFieldClassDefinition instantiation

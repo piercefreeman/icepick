@@ -1,12 +1,21 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
-from inspect import isclass
-from typing import Any, Generic, Literal, Type, TypeGuard, TypeVar, cast
+from typing import Any, Generic, Literal, Type, TypeVar
 
-from iceaxe.base import DBFieldClassComparison, DBFieldClassDefinition, TableBase
+from iceaxe.base import (
+    DBFieldClassComparison,
+    DBFieldClassDefinition,
+    TableBase,
+)
+from iceaxe.functions import FunctionMetadata
+from iceaxe.queries_str import (
+    QueryElementBase,
+    QueryIdentifier,
+    QueryLiteral,
+    field_to_literal,
+)
+from iceaxe.typing import is_base_table, is_column, is_comparison, is_function_metadata
 
 T = TypeVar("T")
 P = TypeVar("P")
@@ -24,39 +33,6 @@ class JoinType(Enum):
 class OrderDirection(Enum):
     ASC = "ASC"
     DESC = "DESC"
-
-
-class Function(Enum):
-    COUNT = "COUNT"
-    SUM = "SUM"
-    AVG = "AVG"
-    MAX = "MAX"
-    MIN = "MIN"
-
-
-class QueryElementBase(ABC):
-    def __init__(self, value: str):
-        self._value = self.process_value(value)
-
-    @abstractmethod
-    def process_value(self, value: str) -> str:
-        pass
-
-    def __str__(self):
-        return self._value
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self._value})"
-
-
-class QueryIdentifier(QueryElementBase):
-    def process_value(self, value: str):
-        return f'"{value}"'
-
-
-class QueryLiteral(QueryElementBase):
-    def process_value(self, value: str):
-        return value
 
 
 class QueryBuilder(Generic[P, QueryType]):
@@ -211,6 +187,10 @@ class QueryBuilder(Generic[P, QueryType]):
         self.group_by_fields = valid_fields
         return self
 
+    def having(self, *conditions: bool):
+        # valid_fields: list[] = []
+        return
+
     def text(self, query: str, *variables: Any):
         """
         Override the ORM builder and use a raw SQL query instead.
@@ -262,12 +242,6 @@ class QueryBuilder(Generic[P, QueryType]):
 
                 query += f"{field} {condition.comparison.value} {value}"
 
-        if self.limit_value is not None:
-            query += f" LIMIT {self.limit_value}"
-
-        if self.offset_value is not None:
-            query += f" OFFSET {self.offset_value}"
-
         if self.group_by_fields:
             query += " GROUP BY "
             query += ", ".join(
@@ -278,64 +252,10 @@ class QueryBuilder(Generic[P, QueryType]):
         if self.order_by_clauses:
             query += " ORDER BY " + ", ".join(self.order_by_clauses)
 
+        if self.limit_value is not None:
+            query += f" LIMIT {self.limit_value}"
+
+        if self.offset_value is not None:
+            query += f" OFFSET {self.offset_value}"
+
         return query, variables
-
-
-def is_base_table(obj: Any) -> TypeGuard[type[TableBase]]:
-    return isclass(obj) and issubclass(obj, TableBase)
-
-
-def is_column(obj: Any) -> TypeGuard[DBFieldClassDefinition]:
-    return isinstance(obj, DBFieldClassDefinition)
-
-
-def is_comparison(obj: Any) -> TypeGuard[DBFieldClassComparison]:
-    return isinstance(obj, DBFieldClassComparison)
-
-
-def is_literal(obj: Any) -> TypeGuard[QueryLiteral]:
-    return isinstance(obj, QueryLiteral)
-
-
-def is_function_metadata(obj: Any) -> TypeGuard[FunctionMetadata]:
-    return isinstance(obj, FunctionMetadata)
-
-
-def field_to_literal(field: DBFieldClassDefinition) -> QueryLiteral:
-    table = QueryIdentifier(field.root_model.get_table_name())
-    column = QueryIdentifier(field.key)
-    return QueryLiteral(f"{table}.{column}")
-
-
-@dataclass
-class FunctionMetadata:
-    literal: QueryLiteral
-    original_field: DBFieldClassDefinition
-    local_name: str | None = None
-
-
-class FunctionBuilder:
-    def count(self, field: Any) -> int:
-        metadata = self._column_to_metadata(field)
-        metadata.literal = QueryLiteral(f"count({metadata.literal})")
-        return cast(int, metadata)
-
-    def distinct(self, field: T) -> T:
-        metadata = self._column_to_metadata(field)
-        metadata.literal = QueryLiteral(f"distinct {metadata.literal}")
-        return cast(T, metadata)
-
-    def _column_to_metadata(self, field: Any) -> FunctionMetadata:
-        if isinstance(field, FunctionMetadata):
-            return field
-        elif is_column(field):
-            return FunctionMetadata(
-                literal=field_to_literal(field), original_field=field
-            )
-        else:
-            raise ValueError(
-                f"Unable to cast this type to a column: {field} ({type(field)})"
-            )
-
-
-func = FunctionBuilder()

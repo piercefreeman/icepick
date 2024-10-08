@@ -1,7 +1,8 @@
 import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
-from iceaxe.queries import JoinType, OrderDirection, QueryBuilder, func
+from iceaxe.functions import func
+from iceaxe.queries import JoinType, OrderDirection, QueryBuilder
 
 
 def test_select():
