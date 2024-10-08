@@ -75,6 +75,21 @@ conn = DBConnection(
 )
 ```
 
+The Person class currently just lives in memory. To back it with a full
+database table, we can run raw SQL or run a migration to add it:
+
+```python
+await conn.conn.execute(
+    """
+    CREATE TABLE IF NOT EXISTS person (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        age INT NOT NULL
+    )
+    """
+)
+```
+
 ### Inserting Data
 
 Instantiate object classes as you normally do:

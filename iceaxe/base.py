@@ -28,6 +28,9 @@ class DBFieldInputs(_FieldInfoInputs, total=False):
     autoincrement: bool
     postgres_config: PostgresFieldBase | None
     foreign_key: str | None
+    unique: bool
+    index: bool
+    check_expression: str | None
 
 
 class DBFieldInfo(FieldInfo):
@@ -39,7 +42,13 @@ class DBFieldInfo(FieldInfo):
     # Polymorphic customization of postgres parameters depending on the field type
     postgres_config: PostgresFieldBase | None = None
 
+    # Link to another table (formatted like "table_name.column_name")
     foreign_key: str | None = None
+
+    # Value constraints
+    unique: bool = False
+    index: bool = False
+    check_expression: str | None = None
 
     def __init__(self, **kwargs: Unpack[DBFieldInputs]):
         # The super call should persist all kwargs as _attributes_set
@@ -52,6 +61,9 @@ class DBFieldInfo(FieldInfo):
         )
         self.postgres_config = kwargs.pop("postgres_config", None)
         self.foreign_key = kwargs.pop("foreign_key", None)
+        self.unique = kwargs.pop("unique", False)
+        self.index = kwargs.pop("index", False)
+        self.check_expression = kwargs.pop("check_expression", None)
 
     @classmethod
     def extend_field(
@@ -60,6 +72,9 @@ class DBFieldInfo(FieldInfo):
         primary_key: bool,
         postgres_config: PostgresFieldBase | None,
         foreign_key: str | None,
+        unique: bool,
+        index: bool,
+        check_expression: str | None,
     ):
         return cls(
             primary_key=primary_key,
@@ -80,6 +95,9 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
         primary_key: bool = False,
         postgres_config: PostgresFieldBase | None = None,
         foreign_key: str | None = None,
+        unique: bool = False,
+        index: bool = False,
+        check_expression: str | None = None,
         default: Any = PydanticUndefined,
         *args: P.args,
         **kwargs: P.kwargs,
@@ -95,6 +113,9 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
                 primary_key=primary_key,
                 postgres_config=postgres_config,
                 foreign_key=foreign_key,
+                unique=unique,
+                index=index,
+                check_expression=check_expression,
             ),
         )
 
@@ -181,8 +202,15 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
                         primary_key=False,
                         postgres_config=None,
                         foreign_key=None,
+                        unique=False,
+                        index=False,
+                        check_expression=None,
                     )
                     for field, info in cls.model_fields.items()
+                    # NOTE: This is a hack to avoid the `modified_attrs` field
+                    # from being indexed in migrations. It should still be accessible
+                    # as a direct attribute on the model
+                    if field not in ["modified_attrs"]
                 }
 
             return cls
@@ -207,11 +235,22 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
                 raise
 
 
+class UniqueConstraint(BaseModel):
+    columns: list[str]
+
+
+class IndexConstraint(BaseModel):
+    columns: list[str]
+
+
 class TableBase(BaseModel, metaclass=DBModelMetaclass):
     if TYPE_CHECKING:
         model_fields: ClassVar[dict[str, DBFieldInfo]]  # type: ignore
 
     table_name: ClassVar[str] = PydanticUndefined  # type: ignore
+    table_args: ClassVar[list[UniqueConstraint | IndexConstraint]] = PydanticUndefined  # type: ignore
+
+    # Private methods
     modified_attrs: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
     def __setattr__(self, name, value):
