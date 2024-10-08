@@ -1,3 +1,4 @@
+from datetime import date, datetime, time, timedelta
 from enum import Enum, IntEnum, StrEnum
 from inspect import isgenerator
 from typing import Any, Generator, Sequence, Type
@@ -34,6 +35,7 @@ from iceaxe.migrations.generics import (
     is_type_compatible,
     remove_null_type,
 )
+from iceaxe.postgres import PostgresDateTime, PostgresTime
 
 
 class DatabaseMemorySerializer:
@@ -195,7 +197,7 @@ class TypeDeclarationResponse(DBObject):
     # They'll be filtered out later
     primitive_type: ColumnType | None = None
     custom_type: DBType | None = None
-    is_list: bool
+    is_list: bool = False
 
     def representation(self) -> str:
         raise NotImplementedError()
@@ -310,7 +312,6 @@ class DatabaseHandler:
                     values=frozenset([value.name for value in annotation]),  # type: ignore
                     reference_columns=frozenset({(table.get_table_name(), key)}),
                 ),
-                is_list=False,
             )
         elif is_type_compatible(annotation, PRIMITIVE_WRAPPER_TYPES):
             for primitive, json_type in self.python_to_sql.items():
@@ -319,10 +320,42 @@ class DatabaseHandler:
                         primitive_type=json_type,
                         is_list=(annotation == list[primitive]),  # type: ignore
                     )
+        elif is_type_compatible(annotation, datetime):
+            if isinstance(info.postgres_config, PostgresDateTime):
+                return TypeDeclarationResponse(
+                    primitive_type=(
+                        ColumnType.TIMESTAMP_WITH_TIME_ZONE
+                        if info.postgres_config.timezone
+                        else ColumnType.TIMESTAMP
+                    )
+                )
+            # Assume no timezone if not specified
+            return TypeDeclarationResponse(
+                primitive_type=ColumnType.TIMESTAMP,
+            )
+        elif is_type_compatible(annotation, date):
+            return TypeDeclarationResponse(
+                primitive_type=ColumnType.DATE,
+            )
+        elif is_type_compatible(annotation, time):
+            if isinstance(info.postgres_config, PostgresTime):
+                return TypeDeclarationResponse(
+                    primitive_type=(
+                        ColumnType.TIME_WITH_TIME_ZONE
+                        if info.postgres_config.timezone
+                        else ColumnType.TIME
+                    ),
+                )
+            return TypeDeclarationResponse(
+                primitive_type=ColumnType.TIME,
+            )
+        elif is_type_compatible(annotation, timedelta):
+            return TypeDeclarationResponse(
+                primitive_type=ColumnType.INTERVAL,
+            )
         elif is_type_compatible(annotation, JSON_WRAPPER_FALLBACK):
             return TypeDeclarationResponse(
                 primitive_type=ColumnType.JSON,
-                is_list=False,
             )
 
         raise ValueError(f"Unsupported column type: {annotation}")
