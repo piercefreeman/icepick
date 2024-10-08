@@ -75,6 +75,11 @@ jobs:
     needs: [test, lint]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/iceaxe
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
@@ -88,10 +93,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           poetry version $VERSION
       - name: Build and publish
-        env:
-          PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           poetry build
-          poetry config pypi-token.pypi $PYPI_PASSWORD
-          poetry publish
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
