@@ -24,7 +24,7 @@ def db_backed_actions(
     """
     Fixture that should be used for actions that should actually be executed
     against a database. We will clear all database objects before and after
-    the test, so no SQLModel backed objects will be available.
+    the test, so no backed objects will be available.
 
     """
     return DatabaseActions(dry_run=False, db_connection=db_connection)

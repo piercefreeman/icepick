@@ -35,7 +35,7 @@ def is_type_compatible(obj_type: Type, target_type: T) -> TypeGuard[T]:
 def _is_type_compatible(obj_type: Type, target_type: Any) -> float:
     """
     Relatively comprehensive type compatibility checker. This function is
-    used to check if a SQLModel type has has a registered object that can
+    used to check if a type has has a registered object that can
     handle it.
 
     Specifically returns the MRO distance where 0 indicates

@@ -38,7 +38,7 @@ async def handle_generate(
     if not (migrations_path / "__init__.py").exists():
         (migrations_path / "__init__.py").touch()
 
-    # Get all of the SQLModel instances that have been registered
+    # Get all of the instances that have been registered
     # in memory scope by the user.
     models = [
         cls

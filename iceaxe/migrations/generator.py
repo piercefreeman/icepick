@@ -83,7 +83,7 @@ class MigrationGenerator:
             down_objects_with_dependencies
         )
 
-        # Convert the SQLModels to their respective DBObjects, with dependencies
+        # Convert to their respective DBObjects, with dependencies
         up_actor = DatabaseActions()
         up_actions = await self.serializer.build_actions(
             up_actor,

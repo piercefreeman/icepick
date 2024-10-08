@@ -140,7 +140,7 @@ class DryRunComment:
 def assert_is_safe_sql_identifier(identifier: str):
     """
     Check if the provided identifier is a safe SQL identifier. Since our code
-    pulls these directly from the SQLModel definitions, there shouldn't
+    pulls these directly from the definitions, there shouldn't
     be any issues with SQL injection, but it's good to be safe.
 
     """

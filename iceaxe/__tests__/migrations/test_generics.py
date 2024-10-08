@@ -2,7 +2,6 @@ from enum import Enum
 from typing import Any, Type, Union
 
 import pytest
-from sqlmodel import SQLModel
 
 from iceaxe.migrations.generics import (
     _is_type_compatible,
@@ -20,10 +19,6 @@ class SomeSuperClass:
 
 class SomeSubClass(SomeSuperClass):
     pass
-
-
-class SomeTable(SQLModel):
-    a: int
 
 
 @pytest.mark.parametrize(

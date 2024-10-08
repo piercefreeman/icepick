@@ -420,7 +420,7 @@ async def test_required_db_default():
 
 def test_multiple_primary_keys(clear_all_database_objects):
     """
-    Support models defined SQLModel with multiple primary keys. This should
+    Support models defined with multiple primary keys. This should
     result in a composite constraint, which has different handling internally
     than most other field-constraints that are isolated to the field itself.
 

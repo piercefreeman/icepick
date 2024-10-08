@@ -217,5 +217,4 @@ network connections in the first place.
 
 ## TODOs
 
-- [ ] Integrated migration pipeline / table constructors.
 - [ ] Additional documentation with usage examples.
