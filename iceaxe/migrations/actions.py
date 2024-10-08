@@ -1,13 +1,13 @@
 from dataclasses import dataclass
+from enum import StrEnum
 from inspect import Parameter, signature
 from re import fullmatch as re_fullmatch
 from typing import Any, Callable, Literal, overload
 
-from mountaineer.compat import StrEnum
-from mountaineer.database.session import AsyncSession
-from mountaineer.logging import LOGGER
 from pydantic import BaseModel
-from sqlmodel import text
+
+from iceaxe.logging import LOGGER
+from iceaxe.session import DBConnection
 
 
 class ColumnType(StrEnum):
@@ -182,16 +182,18 @@ class DatabaseActions:
     def __init__(
         self,
         dry_run: bool = True,
-        db_session: AsyncSession | None = None,
+        db_connection: DBConnection | None = None,
     ):
         self.dry_run = dry_run
 
         if not dry_run:
-            if db_session is None:
-                raise ValueError("Must provide a db_session when not in dry run mode.")
+            if db_connection is None:
+                raise ValueError(
+                    "Must provide a db_connection when not in dry run mode."
+                )
 
         self.dry_run_actions: list[DryRunAction | DryRunComment] = []
-        self.db_session = db_session
+        self.db_connection = db_connection
         self.prod_sqls: list[str] = []
 
     async def add_table(self, table_name: str):
@@ -674,13 +676,13 @@ class DatabaseActions:
                 )
             )
         else:
-            if self.db_session is None:
+            if self.db_connection is None:
                 raise ValueError("Cannot execute migration without a database session")
 
             LOGGER.debug(f"Executing migration SQL: {sql}")
 
             self.prod_sqls.append(sql)
-            await self.db_session.exec(text(sql))
+            await self.db_connection.conn.execute(sql)
 
     def add_comment(self, text: str):
         if self.dry_run:
