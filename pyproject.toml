@@ -24,6 +24,11 @@ pyinstrument = "^4.7.3"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.pytest.ini_options]
+markers = ["integration_tests: run longer-running integration tests"]
+# Default pytest runs shouldn't execute the integration tests
+addopts = "-m 'not integration_tests'"
+
 [tool.mypy]
 warn_return_any = true
 warn_unused_configs = true

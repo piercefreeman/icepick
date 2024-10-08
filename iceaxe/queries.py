@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from inspect import isclass
 from typing import Any, Generic, Literal, Type, TypeGuard, TypeVar, cast
@@ -76,15 +77,18 @@ class QueryBuilder(Generic[P, QueryType]):
         self.update_values: dict[str, Any] = {}
         self.select_fields: list[QueryLiteral] = []
         self.select_raw: list[
-            DBFieldClassDefinition | Type[TableBase] | QueryLiteral
+            DBFieldClassDefinition | Type[TableBase] | FunctionMetadata
         ] = []
+        self.select_aggregate_count = 0
 
         # Text
         self.text_query: str | None = None
         self.text_variables: list[Any] = []
 
     def select(self, fields: T) -> QueryBuilder[T, Literal["SELECT"]]:
-        all_fields: tuple[DBFieldClassDefinition | Type[TableBase] | QueryLiteral, ...]
+        all_fields: tuple[
+            DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...
+        ]
         if not isinstance(fields, tuple):
             all_fields = (fields,)  # type: ignore
         else:
@@ -95,7 +99,7 @@ class QueryBuilder(Generic[P, QueryType]):
             if (
                 not is_column(field)
                 and not is_base_table(field)
-                and not isinstance(field, QueryLiteral)
+                and not is_function_metadata(field)
             ):
                 raise ValueError(
                     f"Invalid field type {field}. Must be:\n1. A column field\n2. A table\n3. A QueryLiteral\n4. A tuple of the above."
@@ -107,7 +111,7 @@ class QueryBuilder(Generic[P, QueryType]):
 
     def _select_inner(
         self,
-        fields: tuple[DBFieldClassDefinition | Type[TableBase] | QueryLiteral, ...],
+        fields: tuple[DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...],
     ):
         self.query_type = "SELECT"  # type: ignore
         self.return_typehint = fields  # type: ignore
@@ -121,8 +125,8 @@ class QueryBuilder(Generic[P, QueryType]):
             self.main_model = representative_field.root_model
         elif is_base_table(representative_field):
             self.main_model = representative_field
-        else:
-            raise ValueError(f"Unsupported first field type {representative_field}")
+        elif is_function_metadata(representative_field):
+            self.main_model = representative_field.original_field.root_model
 
         for field in fields:
             if is_column(field):
@@ -133,9 +137,15 @@ class QueryBuilder(Generic[P, QueryType]):
                 field_token = QueryLiteral("*")
                 self.select_fields.append(QueryLiteral(f"{table_token}.{field_token}"))
                 self.select_raw.append(field)
-            elif is_literal(field):
-                self.select_fields.append(field)
+            elif is_function_metadata(field):
+                field.local_name = f"aggregate_{self.select_aggregate_count}"
+                local_name_token = QueryLiteral(field.local_name)
+
+                self.select_fields.append(
+                    QueryLiteral(f"{field.literal} AS {local_name_token}")
+                )
                 self.select_raw.append(field)
+                self.select_aggregate_count += 1
 
     def update(self, model: Type[TableBase]) -> QueryBuilder[P, Literal["UPDATE"]]:
         self.query_type = "UPDATE"  # type: ignore
@@ -155,8 +165,12 @@ class QueryBuilder(Generic[P, QueryType]):
         self.where_conditions += validated_comparisons
         return self
 
-    def order_by(self, field: str, direction: OrderDirection = OrderDirection.ASC):
-        self.order_by_clauses.append(f"{field} {direction.value}")
+    def order_by(self, field: Any, direction: OrderDirection = OrderDirection.ASC):
+        if not is_column(field):
+            raise ValueError(f"Invalid order by field: {field}")
+
+        field_token = field_to_literal(field)
+        self.order_by_clauses.append(f"{field_token} {direction.value}")
         return self
 
     def join(
@@ -261,6 +275,9 @@ class QueryBuilder(Generic[P, QueryType]):
                 for field in self.group_by_fields
             )
 
+        if self.order_by_clauses:
+            query += " ORDER BY " + ", ".join(self.order_by_clauses)
+
         return query, variables
 
 
@@ -280,27 +297,41 @@ def is_literal(obj: Any) -> TypeGuard[QueryLiteral]:
     return isinstance(obj, QueryLiteral)
 
 
+def is_function_metadata(obj: Any) -> TypeGuard[FunctionMetadata]:
+    return isinstance(obj, FunctionMetadata)
+
+
 def field_to_literal(field: DBFieldClassDefinition) -> QueryLiteral:
     table = QueryIdentifier(field.root_model.get_table_name())
     column = QueryIdentifier(field.key)
     return QueryLiteral(f"{table}.{column}")
 
 
+@dataclass
+class FunctionMetadata:
+    literal: QueryLiteral
+    original_field: DBFieldClassDefinition
+    local_name: str | None = None
+
+
 class FunctionBuilder:
-    # These should probably roll-up into a class like func
     def count(self, field: Any) -> int:
-        field_name = self._column_to_name(field)
-        return cast(int, QueryLiteral(f"count({field_name})"))
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"count({metadata.literal})")
+        return cast(int, metadata)
 
     def distinct(self, field: T) -> T:
-        field_name = self._column_to_name(field)
-        return cast(T, QueryLiteral(f"distinct {field_name}"))
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"distinct {metadata.literal}")
+        return cast(T, metadata)
 
-    def _column_to_name(self, field: Any) -> QueryLiteral:
-        if isinstance(field, QueryLiteral):
+    def _column_to_metadata(self, field: Any) -> FunctionMetadata:
+        if isinstance(field, FunctionMetadata):
             return field
         elif is_column(field):
-            return field_to_literal(field)
+            return FunctionMetadata(
+                literal=field_to_literal(field), original_field=field
+            )
         else:
             raise ValueError(
                 f"Unable to cast this type to a column: {field} ({type(field)})"

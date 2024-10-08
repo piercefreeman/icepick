@@ -17,11 +17,12 @@ import asyncpg
 from iceaxe.base import DBFieldClassDefinition, TableBase
 from iceaxe.logging import LOGGER
 from iceaxe.queries import (
+    FunctionMetadata,
     QueryBuilder,
     QueryIdentifier,
     is_base_table,
     is_column,
-    is_literal,
+    is_function_metadata,
 )
 
 P = ParamSpec("P")
@@ -74,7 +75,7 @@ class DBConnection:
                 (
                     is_base_table(select_raw),
                     is_column(select_raw),
-                    is_literal(select_raw),
+                    is_function_metadata(select_raw),
                 )
                 for select_raw in query.select_raw
             ]
@@ -83,9 +84,11 @@ class DBConnection:
                 result_value = []
                 result_count = 0
 
-                for select_raw, (raw_is_table, raw_is_column, raw_is_literal) in zip(
-                    query.select_raw, select_types
-                ):
+                for select_raw, (
+                    raw_is_table,
+                    raw_is_column,
+                    raw_is_function_metadata,
+                ) in zip(query.select_raw, select_types):
                     if raw_is_table:
                         if TYPE_CHECKING:
                             select_raw = cast(Type[TableBase], select_raw)
@@ -104,10 +107,11 @@ class DBConnection:
                             select_raw = cast(DBFieldClassDefinition, select_raw)
                         result_value.append(value[select_raw.key])
                         result_count += 1
-                    elif raw_is_literal:
-                        # result_value.append(value[])
-                        # TODO: We need to recover this somehow
-                        raise NotImplementedError
+                    elif raw_is_function_metadata:
+                        if TYPE_CHECKING:
+                            select_raw = cast(FunctionMetadata, select_raw)
+                        result_value.append(value[select_raw.local_name])
+                        result_count += 1
 
                 if result_count == 1:
                     result_all.append(result_value[0])
