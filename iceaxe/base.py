@@ -28,6 +28,9 @@ class DBFieldInputs(_FieldInfoInputs, total=False):
     autoincrement: bool
     postgres_config: PostgresFieldBase | None
     foreign_key: str | None
+    unique: bool
+    index: bool
+    check_expression: str | None
 
 
 class DBFieldInfo(FieldInfo):
@@ -39,7 +42,13 @@ class DBFieldInfo(FieldInfo):
     # Polymorphic customization of postgres parameters depending on the field type
     postgres_config: PostgresFieldBase | None = None
 
+    # Link to another table (formatted like "table_name.column_name")
     foreign_key: str | None = None
+
+    # Value constraints
+    unique: bool = False
+    index: bool = False
+    check_expression: str | None = None
 
     def __init__(self, **kwargs: Unpack[DBFieldInputs]):
         # The super call should persist all kwargs as _attributes_set
@@ -52,6 +61,9 @@ class DBFieldInfo(FieldInfo):
         )
         self.postgres_config = kwargs.pop("postgres_config", None)
         self.foreign_key = kwargs.pop("foreign_key", None)
+        self.unique = kwargs.pop("unique", False)
+        self.index = kwargs.pop("index", False)
+        self.check_expression = kwargs.pop("check_expression", None)
 
     @classmethod
     def extend_field(
@@ -60,6 +72,9 @@ class DBFieldInfo(FieldInfo):
         primary_key: bool,
         postgres_config: PostgresFieldBase | None,
         foreign_key: str | None,
+        unique: bool,
+        index: bool,
+        check_expression: str | None,
     ):
         return cls(
             primary_key=primary_key,
@@ -80,6 +95,9 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
         primary_key: bool = False,
         postgres_config: PostgresFieldBase | None = None,
         foreign_key: str | None = None,
+        unique: bool = False,
+        index: bool = False,
+        check_expression: str | None = None,
         default: Any = PydanticUndefined,
         *args: P.args,
         **kwargs: P.kwargs,
@@ -95,6 +113,9 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
                 primary_key=primary_key,
                 postgres_config=postgres_config,
                 foreign_key=foreign_key,
+                unique=unique,
+                index=index,
+                check_expression=check_expression,
             ),
         )
 
@@ -162,49 +183,71 @@ class DBFieldClassComparison:
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(PydanticField,))
 class DBModelMetaclass(_model_construction.ModelMetaclass):
-    if not TYPE_CHECKING:
+    _registry: list[Type["TableBase"]] = []
 
-        def __new__(
-            mcs, name: str, bases: tuple, namespace: dict[str, Any], **kwargs: Any
-        ) -> type:
-            mcs.is_constructing = True
-            cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-            mcs.is_constructing = False
+    def __new__(
+        mcs, name: str, bases: tuple, namespace: dict[str, Any], **kwargs: Any
+    ) -> type:
+        mcs.is_constructing = True
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        mcs.is_constructing = False
 
-            # If we have already set the class's fields, we should wrap them
-            if hasattr(cls, "model_fields"):
-                cls.model_fields = {
-                    field: info
-                    if isinstance(info, DBFieldInfo)
-                    else DBFieldInfo.extend_field(
-                        info,
-                        primary_key=False,
-                        postgres_config=None,
-                        foreign_key=None,
-                    )
-                    for field, info in cls.model_fields.items()
-                }
+        # If we have already set the class's fields, we should wrap them
+        if hasattr(cls, "model_fields"):
+            cls.model_fields = {
+                field: info
+                if isinstance(info, DBFieldInfo)
+                else DBFieldInfo.extend_field(
+                    info,
+                    primary_key=False,
+                    postgres_config=None,
+                    foreign_key=None,
+                    unique=False,
+                    index=False,
+                    check_expression=None,
+                )
+                for field, info in cls.model_fields.items()
+            }
 
-            return cls
+        # Avoid registering HandlerBase itself
+        if cls.__name__ not in {"TableBase", "BaseModel"}:
+            DBModelMetaclass._registry.append(cls)
 
-        def __getattr__(self, key: str) -> Any:
-            # Inspired by the approach in our render logic
-            # https://github.com/piercefreeman/mountaineer/blob/fdda3a58c0fafebb43a58b4f3d410dbf44302fd6/mountaineer/render.py#L252
-            if self.is_constructing:
-                return super().__getattr__(key)
+        return cls
 
-            try:
-                return super().__getattr__(key)
-            except AttributeError:
-                # Determine if this field is defined within the spec
-                # If so, return it
-                if key in self.model_fields:
-                    return DBFieldClassDefinition(
-                        root_model=self,
-                        key=key,
-                        field_definition=self.model_fields[key],
-                    )
-                raise
+    def __getattr__(self, key: str) -> Any:
+        # Inspired by the approach in our render logic
+        # https://github.com/piercefreeman/mountaineer/blob/fdda3a58c0fafebb43a58b4f3d410dbf44302fd6/mountaineer/render.py#L252
+        if self.is_constructing:
+            return super().__getattr__(key)  # type: ignore
+
+        try:
+            return super().__getattr__(key)  # type: ignore
+        except AttributeError:
+            # Determine if this field is defined within the spec
+            # If so, return it
+            if key in self.model_fields:
+                return DBFieldClassDefinition(
+                    root_model=self,  # type: ignore
+                    key=key,
+                    field_definition=self.model_fields[key],
+                )
+            raise
+
+    @classmethod
+    def get_registry(cls):
+        return cls._registry
+
+
+class UniqueConstraint(BaseModel):
+    columns: list[str]
+
+
+class IndexConstraint(BaseModel):
+    columns: list[str]
+
+
+INTERNAL_TABLE_FIELDS = ["modified_attrs"]
 
 
 class TableBase(BaseModel, metaclass=DBModelMetaclass):
@@ -212,6 +255,9 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         model_fields: ClassVar[dict[str, DBFieldInfo]]  # type: ignore
 
     table_name: ClassVar[str] = PydanticUndefined  # type: ignore
+    table_args: ClassVar[list[UniqueConstraint | IndexConstraint]] = PydanticUndefined  # type: ignore
+
+    # Private methods
     modified_attrs: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
     def __setattr__(self, name, value):
