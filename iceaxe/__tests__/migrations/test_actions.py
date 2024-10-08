@@ -183,8 +183,6 @@ async def test_drop_table(
     await db_backed_actions.drop_table("test_table")
 
     # We should not have a table in the database
-    # SQLAlchemy re-raises the exception as a ProgrammingError, but includes
-    # the original exception as a string representation that we can match against
     with pytest.raises(asyncpg.exceptions.UndefinedTableError):
         await db_connection.conn.execute("SELECT * FROM test_table")
 

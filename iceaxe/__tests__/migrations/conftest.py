@@ -6,8 +6,7 @@ from iceaxe.session import DBConnection
 @pytest_asyncio.fixture
 async def clear_all_database_objects(db_connection: DBConnection):
     """
-    Clear all database objects, including those not directly created through
-    SQLAlchemy.
+    Clear all database objects.
 
     """
     # Step 1: Drop all tables in the public schema

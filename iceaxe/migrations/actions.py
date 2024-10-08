@@ -100,10 +100,6 @@ class ConstraintType(StrEnum):
     CHECK = "CHECK"
     INDEX = "INDEX"
 
-    # Exclude constraints aren't well-supported in SQLAlchemy since they
-    # are postgres-specific, so we don't have built-in handling for them.
-    # EXCLUDE = "EXCLUDE"
-
 
 class ForeignKeyConstraint(BaseModel):
     target_table: str
@@ -169,7 +165,7 @@ class DatabaseActions:
     """
     Track the actions that need to be executed to the database. Provides
     a shallow, typed ORM on top of the raw SQL commands that we'll execute
-    through sqlalchemy.
+    through asyncpg.
 
     This class manually builds up the SQL strings that will be executed against
     postgres. We intentionally avoid using the ORM or variable-insertion modes

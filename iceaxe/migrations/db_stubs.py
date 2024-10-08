@@ -223,7 +223,6 @@ class DBConstraint(DBObject):
         columns: list[str],
         constraint_type: ConstraintType,
     ):
-        # We follow the basic naming conventions of sqlalchemy, but there may be variations
         elements = [table_name]
         if constraint_type == ConstraintType.PRIMARY_KEY:
             elements.append("pkey")

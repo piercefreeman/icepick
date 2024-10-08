@@ -5,8 +5,8 @@ Optional compatibility layer for `mountaineer` dependency access.
 
 import asyncpg
 from mountaineer import CoreDependencies, Depends
-from mountaineer.database import DatabaseConfig
 
+from iceaxe.mountaineer.config import DatabaseConfig
 from iceaxe.session import DBConnection
 
 
