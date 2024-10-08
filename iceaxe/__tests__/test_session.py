@@ -1,6 +1,6 @@
 import pytest
 
-from iceaxe.__tests__.conf_models import UserDemo
+from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
 from iceaxe.queries import QueryBuilder
 from iceaxe.session import (
     DBConnection,
@@ -179,4 +179,28 @@ async def test_select_where(db_connection: DBConnection):
     result = await db_connection.exec(new_query)
     assert result == [
         UserDemo(id=user.id, name="John Doe", email="john@example.com"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_select_join(db_connection: DBConnection):
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+    assert user.id is not None
+
+    artifact = ArtifactDemo(title="Artifact 1", user_id=user.id)
+    await db_connection.insert([artifact])
+
+    new_query = (
+        QueryBuilder()
+        .select((ArtifactDemo, UserDemo.email))
+        .join(UserDemo, UserDemo.id == ArtifactDemo.user_id)
+        .where(UserDemo.name == "John Doe")
+    )
+    result = await db_connection.exec(new_query)
+    assert result == [
+        (
+            ArtifactDemo(id=artifact.id, title="Artifact 1", user_id=user.id),
+            "john@example.com",
+        )
     ]

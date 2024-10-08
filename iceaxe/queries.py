@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Enum, auto
+from enum import Enum
 from inspect import isclass
 from typing import Any, Generic, Literal, Type, TypeGuard, TypeVar, cast
 
@@ -14,10 +14,10 @@ QueryType = TypeVar("QueryType", bound=Literal["SELECT", "INSERT", "UPDATE", "DE
 
 
 class JoinType(Enum):
-    INNER = auto()
-    LEFT = auto()
-    RIGHT = auto()
-    FULL = auto()
+    INNER = "INNER"
+    LEFT = "LEFT"
+    RIGHT = "RIGHT"
+    FULL = "FULL"
 
 
 class OrderDirection(Enum):
@@ -159,8 +159,22 @@ class QueryBuilder(Generic[P, QueryType]):
         self.order_by_clauses.append(f"{field} {direction.value}")
         return self
 
-    def join(self, table: str, on: str, join_type: JoinType = JoinType.INNER):
-        join_sql = f'{join_type.name} JOIN "{table}" ON {on}'
+    def join(
+        self, table: Type[TableBase], on: bool, join_type: JoinType = JoinType.INNER
+    ):
+        if not is_comparison(on):
+            raise ValueError(
+                f"Invalid join condition: {on}, should be MyTable.column == OtherTable.column"
+            )
+
+        table_name = QueryLiteral(table.get_table_name())
+        on_left = field_to_literal(on.field)
+        comparison = QueryLiteral(on.comparison.value)
+        on_right = field_to_literal(on.value)
+
+        join_sql = (
+            f"{join_type.value} JOIN {table_name} ON {on_left} {comparison} {on_right}"
+        )
         self.join_clauses.append(join_sql)
         return self
 

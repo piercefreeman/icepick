@@ -12,6 +12,12 @@ class UserDemo(TableBase):
     email: str
 
 
+class ArtifactDemo(TableBase):
+    id: int = Field(primary_key=True, default=None)
+    title: str
+    user_id: int = Field(foreign_key="userdemo.id")
+
+
 @contextmanager
 def run_profile(request):
     TESTS_ROOT = Path.cwd()

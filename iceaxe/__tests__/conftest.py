@@ -16,6 +16,10 @@ async def db_connection():
         )
     )
 
+    # Clear the old table from previous runs
+    await conn.conn.fetch("DROP TABLE IF EXISTS artifactdemo CASCADE")
+    await conn.conn.fetch("DROP TABLE IF EXISTS userdemo CASCADE")
+
     # Create a test table
     await conn.conn.fetch("""
         CREATE TABLE IF NOT EXISTS userdemo (
@@ -24,9 +28,17 @@ async def db_connection():
             email TEXT
         )
     """)
+
+    await conn.conn.fetch("""
+        CREATE TABLE IF NOT EXISTS artifactdemo (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            user_id INT REFERENCES userdemo(id)
+        )
+        """)
+
     yield conn
     # Drop the test table after all tests
-    # await conn.conn.fetch("DROP TABLE IF EXISTS userdemo")
     await conn.conn.close()
 
 
