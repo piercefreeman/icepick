@@ -130,7 +130,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 self.select_raw.append(field)
                 self.select_aggregate_count += 1
 
-    def update(self, model: Type[TableBase]) -> QueryBuilder[P, Literal["UPDATE"]]:
+    def update(self, model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
         self.query_type = "UPDATE"  # type: ignore
         self.main_model = model
         return self  # type: ignore
@@ -291,3 +291,18 @@ class QueryBuilder(Generic[P, QueryType]):
             query += f" OFFSET {self.offset_value}"
 
         return query, variables
+
+
+#
+# Shortcut entrypoints
+# Instead of having to manually create a QueryBuilder object, these functions
+# will create one for you and return it.
+#
+
+
+def select(fields: T) -> QueryBuilder[T, Literal["SELECT"]]:
+    return QueryBuilder().select(fields)
+
+
+def update(model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
+    return QueryBuilder().update(model)
