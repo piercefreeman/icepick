@@ -1,11 +1,5 @@
-from envelope.db.base import Field, TableBase
-from envelope.db.queries import QueryBuilder
-
-
-class UserDemo(TableBase):
-    id: int = Field(primary_key=True, default=None)
-    name: str
-    email: str
+from iceaxe.__tests__.conf_models import UserDemo
+from iceaxe.queries import QueryBuilder
 
 
 def test_select():

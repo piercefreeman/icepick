@@ -13,13 +13,12 @@ from typing import (
     dataclass_transform,
 )
 
-from pydantic import BaseModel
-from pydantic import Field as PydanticField
+from pydantic import BaseModel, Field as PydanticField
 from pydantic.fields import FieldInfo, _FieldInfoInputs
 from pydantic.main import _model_construction
 from pydantic_core import PydanticUndefined
 
-from envelope.db.postgres import PostgresFieldBase
+from iceaxe.postgres import PostgresFieldBase
 
 P = ParamSpec("P")
 

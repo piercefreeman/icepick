@@ -1,6 +1,6 @@
 import pytest
 
-from envelope.db.base import (
+from iceaxe.base import (
     ComparisonType,
     DBFieldClassComparison,
     DBFieldClassDefinition,

@@ -1,42 +1,10 @@
 import pytest
-import pytest_asyncio
 
-from envelope.config import AppConfig
-from envelope.db.base import Field, TableBase
-from envelope.db.queries import QueryBuilder
-from envelope.db.session import (
+from iceaxe.__tests__.conf_models import UserDemo
+from iceaxe.queries import QueryBuilder
+from iceaxe.session import (
     DBConnection,
-    get_db_connection,
 )
-
-
-class UserDemo(TableBase):
-    id: int = Field(primary_key=True, default=None)
-    name: str
-    email: str
-
-
-@pytest_asyncio.fixture
-async def db_connection(config: AppConfig):
-    conn = await get_db_connection(config=config)
-    # Create a test table
-    await conn.conn.fetch("""
-        CREATE TABLE IF NOT EXISTS userdemo (
-            id SERIAL PRIMARY KEY,
-            name TEXT,
-            email TEXT
-        )
-    """)
-    yield conn
-    # Drop the test table after all tests
-    await conn.conn.fetch("DROP TABLE IF EXISTS userdemo")
-    await conn.conn.close()
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def clear_table(db_connection):
-    await db_connection.conn.fetch("DELETE FROM userdemo")
-    await db_connection.conn.fetch("ALTER SEQUENCE userdemo_id_seq RESTART WITH 1")
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,92 @@
+name: Library Tests
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        #os: [ubuntu-latest, macos-latest, windows-latest]
+        # Removing OSX / Windows testing for now since docker isn't supported, which
+        # invalidates our postgres tests
+        os: [ubuntu-latest]
+        python-version: ["3.11", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: iceaxe
+          POSTGRES_PASSWORD: mysecretpassword
+          POSTGRES_DB: iceaxe_test_db
+        ports:
+          - 5438:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+      - name: Install dependencies
+        run: poetry install
+      - name: Run tests
+        run: |
+          poetry run pytest -v --continue-on-collection-errors
+        env:
+          ICEAXE_LOG_LEVEL: DEBUG
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+      - name: Install dependencies
+        run: poetry install
+      - name: Run lint
+        run: make lint
+
+  release:
+    needs: [test, lint]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+      - name: Update version in pyproject.toml
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          poetry version $VERSION
+      - name: Build and publish
+        env:
+          PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          poetry build
+          poetry config pypi-token.pypi $PYPI_PASSWORD
+          poetry publish

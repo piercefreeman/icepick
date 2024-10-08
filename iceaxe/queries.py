@@ -5,7 +5,7 @@ from enum import Enum, auto
 from inspect import isclass
 from typing import Any, Generic, Literal, Type, TypeGuard, TypeVar, cast
 
-from envelope.db.base import DBFieldClassComparison, DBFieldClassDefinition, TableBase
+from iceaxe.base import DBFieldClassComparison, DBFieldClassDefinition, TableBase
 
 T = TypeVar("T")
 P = TypeVar("P")
@@ -129,9 +129,9 @@ class QueryBuilder(Generic[P, QueryType]):
                 self.select_fields.append(field_to_literal(field))
                 self.select_raw.append(field)
             elif is_base_table(field):
-                table = QueryIdentifier(field.get_table_name())
-                field = QueryLiteral("*")
-                self.select_fields.append(QueryLiteral(f"{table}.{field}"))
+                table_token = QueryIdentifier(field.get_table_name())
+                field_token = QueryLiteral("*")
+                self.select_fields.append(QueryLiteral(f"{table_token}.{field_token}"))
                 self.select_raw.append(field)
             elif is_literal(field):
                 self.select_fields.append(field)

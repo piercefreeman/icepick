@@ -1,6 +1,7 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
     ParamSpec,
@@ -12,18 +13,16 @@ from typing import (
 )
 
 import asyncpg
-from mountaineer import CoreDependencies, Depends
-from mountaineer.database import DatabaseConfig
 
-from envelope.db.base import TableBase
-from envelope.db.queries import (
+from iceaxe.base import DBFieldClassDefinition, TableBase
+from iceaxe.logging import LOGGER
+from iceaxe.queries import (
     QueryBuilder,
     QueryIdentifier,
     is_base_table,
     is_column,
     is_literal,
 )
-from envelope.logging import LOGGER
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -69,11 +68,27 @@ class DBConnection:
             # Field selections should already be in the proper type
             result_all: list[Any] = []
 
+            # Pre-cache the select types, so we don't have to the runtime inspection of types
+            # for each value
+            select_types = [
+                (
+                    is_base_table(select_raw),
+                    is_column(select_raw),
+                    is_literal(select_raw),
+                )
+                for select_raw in query.select_raw
+            ]
+
             for value in values:
-                # Go through the fields and cast them to the proper type
-                result_value: list[Any] = []
-                for select_raw in query.select_raw:
-                    if is_base_table(select_raw):
+                result_value = []
+                result_count = 0
+
+                for select_raw, (raw_is_table, raw_is_column, raw_is_literal) in zip(
+                    query.select_raw, select_types
+                ):
+                    if raw_is_table:
+                        if TYPE_CHECKING:
+                            select_raw = cast(Type[TableBase], select_raw)
                         result_value.append(
                             select_raw(
                                 **{
@@ -83,14 +98,18 @@ class DBConnection:
                                 }
                             )
                         )
-                    elif is_column(select_raw):
+                        result_count += 1
+                    elif raw_is_column:
+                        if TYPE_CHECKING:
+                            select_raw = cast(DBFieldClassDefinition, select_raw)
                         result_value.append(value[select_raw.key])
-                    elif is_literal(select_raw):
+                        result_count += 1
+                    elif raw_is_literal:
                         # result_value.append(value[])
                         # TODO: We need to recover this somehow
-                        pass
+                        raise NotImplementedError
 
-                if len(result_value) == 1:
+                if result_count == 1:
                     result_all.append(result_value[0])
                 else:
                     result_all.append(tuple(result_value))
@@ -198,18 +217,3 @@ class DBConnection:
                 yield
         else:
             yield
-
-
-async def get_db_connection(
-    config: DatabaseConfig = Depends(
-        CoreDependencies.get_config_with_type(DatabaseConfig)
-    ),
-) -> DBConnection:
-    conn = await asyncpg.connect(
-        host=config.POSTGRES_HOST,
-        port=config.POSTGRES_PORT,
-        user=config.POSTGRES_USER,
-        password=config.POSTGRES_PASSWORD,
-        database=config.POSTGRES_DB,
-    )
-    return DBConnection(conn)
