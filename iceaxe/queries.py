@@ -8,14 +8,20 @@ from iceaxe.base import (
     DBFieldClassDefinition,
     TableBase,
 )
-from iceaxe.functions import FunctionMetadata
+from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
 from iceaxe.queries_str import (
     QueryElementBase,
     QueryIdentifier,
     QueryLiteral,
     field_to_literal,
 )
-from iceaxe.typing import is_base_table, is_column, is_comparison, is_function_metadata
+from iceaxe.typing import (
+    is_base_table,
+    is_column,
+    is_comparison,
+    is_function_metadata,
+    is_function_metadata_comparison,
+)
 
 T = TypeVar("T")
 P = TypeVar("P")
@@ -48,6 +54,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.limit_value: int | None = None
         self.offset_value: int | None = None
         self.group_by_fields: list[DBFieldClassDefinition] = []
+        self.having_conditions: list[FunctionMetadataComparison] = []
 
         # Query specific params
         self.update_values: dict[str, Any] = {}
@@ -158,9 +165,9 @@ class QueryBuilder(Generic[P, QueryType]):
             )
 
         table_name = QueryLiteral(table.get_table_name())
-        on_left = field_to_literal(on.field)
+        on_left = field_to_literal(on.left)
         comparison = QueryLiteral(on.comparison.value)
-        on_right = field_to_literal(on.value)
+        on_right = field_to_literal(on.right)
 
         join_sql = (
             f"{join_type.value} JOIN {table_name} ON {on_left} {comparison} {on_right}"
@@ -188,8 +195,15 @@ class QueryBuilder(Generic[P, QueryType]):
         return self
 
     def having(self, *conditions: bool):
-        # valid_fields: list[] = []
-        return
+        valid_conditions: list[FunctionMetadataComparison] = []
+
+        for condition in conditions:
+            if not is_function_metadata_comparison(condition):
+                raise ValueError(f"Invalid having condition: {condition}")
+            valid_conditions.append(condition)
+
+        self.having_conditions += valid_conditions
+        return self
 
     def text(self, query: str, *variables: Any):
         """
@@ -230,14 +244,14 @@ class QueryBuilder(Generic[P, QueryType]):
                 if i > 0:
                     query += " AND "
 
-                field = field_to_literal(condition.field)
+                field = field_to_literal(condition.left)
                 value: QueryElementBase
-                if isinstance(condition.value, DBFieldClassDefinition):
+                if is_column(condition.right):
                     # Support comparison to other fields (both identifiers)
-                    value = field_to_literal(condition.value)
+                    value = field_to_literal(condition.right)
                 else:
                     # Support comparison to static values
-                    variables.append(condition.value)
+                    variables.append(condition.right)
                     value = QueryLiteral("$" + str(len(variables)))
 
                 query += f"{field} {condition.comparison.value} {value}"
@@ -248,6 +262,24 @@ class QueryBuilder(Generic[P, QueryType]):
                 f"{QueryIdentifier(field.root_model.get_table_name())}.{QueryIdentifier(field.key)}"
                 for field in self.group_by_fields
             )
+
+        if self.having_conditions:
+            query += " HAVING "
+            for i, having_condition in enumerate(self.having_conditions):
+                if i > 0:
+                    query += " AND "
+
+                having_field = having_condition.left.literal
+                having_value: QueryElementBase
+                if is_function_metadata(having_condition.right):
+                    having_value = having_condition.right.literal
+                else:
+                    variables.append(having_condition.right)
+                    having_value = QueryLiteral("$" + str(len(variables)))
+
+                query += (
+                    f"{having_field} {having_condition.comparison.value} {having_value}"
+                )
 
         if self.order_by_clauses:
             query += " ORDER BY " + ", ".join(self.order_by_clauses)

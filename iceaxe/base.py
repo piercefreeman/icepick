@@ -150,14 +150,14 @@ class DBFieldClassDefinition:
         return self._compare(ComparisonType.LIKE, other)  # type: ignore
 
     def _compare(self, comparison: ComparisonType, other: Any):
-        return DBFieldClassComparison(field=self, comparison=comparison, value=other)
+        return DBFieldClassComparison(left=self, comparison=comparison, right=other)
 
 
 @dataclass
 class DBFieldClassComparison:
-    field: DBFieldClassDefinition
+    left: DBFieldClassDefinition
     comparison: ComparisonType
-    value: DBFieldClassDefinition | Any
+    right: DBFieldClassDefinition | Any
 
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(PydanticField,))

@@ -7,8 +7,7 @@ from iceaxe.base import (
     ComparisonType,
     DBFieldClassDefinition,
 )
-from iceaxe.queries import field_to_literal
-from iceaxe.queries_str import QueryLiteral
+from iceaxe.queries_str import QueryLiteral, field_to_literal
 from iceaxe.typing import is_column, is_function_metadata
 
 T = TypeVar("T")

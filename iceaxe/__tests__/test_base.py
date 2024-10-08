@@ -21,82 +21,82 @@ def db_field():
 def test_eq(db_field):
     result = db_field == 5
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.EQ
-    assert result.value == 5
+    assert result.right == 5
 
 
 def test_ne(db_field):
     result = db_field != 5
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.NE
-    assert result.value == 5
+    assert result.right == 5
 
 
 def test_lt(db_field):
     result = db_field < 5
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.LT
-    assert result.value == 5
+    assert result.right == 5
 
 
 def test_le(db_field):
     result = db_field <= 5
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.LE
-    assert result.value == 5
+    assert result.right == 5
 
 
 def test_gt(db_field):
     result = db_field > 5
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.GT
-    assert result.value == 5
+    assert result.right == 5
 
 
 def test_ge(db_field):
     result = db_field >= 5
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.GE
-    assert result.value == 5
+    assert result.right == 5
 
 
 def test_in(db_field):
     result = db_field.in_([1, 2, 3])
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.IN
-    assert result.value == [1, 2, 3]
+    assert result.right == [1, 2, 3]
 
 
 def test_not_in(db_field):
     result = db_field.not_in([1, 2, 3])
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.NOT_IN
-    assert result.value == [1, 2, 3]
+    assert result.right == [1, 2, 3]
 
 
 def test_contains(db_field):
     result = db_field.like("test")
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.LIKE
-    assert result.value == "test"
+    assert result.right == "test"
 
 
 # Test case for _compare method
 def test_compare(db_field):
     result = db_field._compare(ComparisonType.EQ, 10)
     assert isinstance(result, DBFieldClassComparison)
-    assert result.field == db_field
+    assert result.left == db_field
     assert result.comparison == ComparisonType.EQ
-    assert result.value == 10
+    assert result.right == 10
 
 
 # Test cases for edge cases and different types
@@ -127,23 +127,23 @@ def test_comparison_with_different_types(db_field, value):
         db_field.__ge__,
         db_field.in_,
         db_field.not_in,
-        db_field.contains,
+        db_field.like,
     ]:
         result = method(value)
         assert isinstance(result, DBFieldClassComparison)
-        assert result.field == db_field
+        assert result.left == db_field
         assert isinstance(result.comparison, ComparisonType)
-        assert result.value == value
+        assert result.right == value
 
 
 # Test case for DBFieldClassComparison instantiation
 def test_db_field_class_comparison_instantiation(db_field):
     comparison = DBFieldClassComparison(
-        field=db_field, comparison=ComparisonType.EQ, value=5
+        left=db_field, comparison=ComparisonType.EQ, right=5
     )
-    assert comparison.field == db_field
+    assert comparison.left == db_field
     assert comparison.comparison == ComparisonType.EQ
-    assert comparison.value == 5
+    assert comparison.right == 5
 
 
 # Test case for ComparisonType enum
