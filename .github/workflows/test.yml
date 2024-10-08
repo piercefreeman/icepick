@@ -49,11 +49,7 @@ jobs:
         run: |
           poetry run pytest -v --continue-on-collection-errors
         env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5438
-          POSTGRES_USER: iceaxe
-          POSTGRES_PASSWORD: mysecretpassword
-          POSTGRES_DB: iceaxe_test_db
+          ICEAXE_LOG_LEVEL: DEBUG
 
   lint:
     runs-on: ubuntu-latest

@@ -1,11 +1,5 @@
-from iceaxe.base import Field, TableBase
+from iceaxe.__tests__.conf_models import UserDemo
 from iceaxe.queries import QueryBuilder
-
-
-class UserDemo(TableBase):
-    id: int = Field(primary_key=True, default=None)
-    name: str
-    email: str
 
 
 def test_select():

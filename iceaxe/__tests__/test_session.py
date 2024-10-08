@@ -1,16 +1,10 @@
 import pytest
 
-from iceaxe.base import Field, TableBase
+from iceaxe.__tests__.conf_models import UserDemo
 from iceaxe.queries import QueryBuilder
 from iceaxe.session import (
     DBConnection,
 )
-
-
-class UserDemo(TableBase):
-    id: int = Field(primary_key=True, default=None)
-    name: str
-    email: str
 
 
 @pytest.mark.asyncio

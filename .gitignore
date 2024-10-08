@@ -165,3 +165,5 @@ target
 *.ipynb_checkpoints
 
 pyrightconfig.json
+
+.profiles
