@@ -1,8 +1,7 @@
 from abc import abstractmethod
 
-from mountaineer.dependencies import get_function_dependencies
-
 from iceaxe.migrations.migrator import Migrator
+from iceaxe.session import DBConnection
 
 
 class MigrationRevisionBase:
@@ -17,38 +16,23 @@ class MigrationRevisionBase:
     up_revision: str
     down_revision: str | None
 
-    async def handle_up(self):
+    async def handle_up(self, db_connection: DBConnection):
         """
         Internal method to handle the up migration.
         """
-        async with get_function_dependencies(
-            callable=self.up,
-        ) as values:
-            if "migrator" not in values:
-                raise ValueError(
-                    "The 'migrator' dependency is required for migrations."
-                )
-
-            await self.up(**values)
-
-            migrator = values["migrator"]
+        # Isolated migrator context just for this migration
+        async with db_connection.transaction():
+            migrator = Migrator(db_connection)
+            await self.up(migrator)
             await migrator.set_active_revision(self.up_revision)
 
-    async def handle_down(self):
+    async def handle_down(self, db_connection: DBConnection):
         """
         Internal method to handle the down migration.
         """
-        async with get_function_dependencies(
-            callable=self.down,
-        ) as values:
-            if "migrator" not in values:
-                raise ValueError(
-                    "The 'migrator' dependency is required for migrations."
-                )
-
-            await self.down(**values)
-
-            migrator = values["migrator"]
+        async with db_connection.transaction():
+            migrator = Migrator(db_connection)
+            await self.down(migrator)
             await migrator.set_active_revision(self.down_revision)
 
     @abstractmethod

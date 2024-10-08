@@ -1,7 +1,6 @@
 from abc import abstractmethod
-from typing import Union
+from typing import Self, Union
 
-from mountaineer.compat import Self
 from pydantic import BaseModel, Field, model_validator
 
 from iceaxe.migrations.actions import (

@@ -183,56 +183,60 @@ class DBFieldClassComparison:
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(PydanticField,))
 class DBModelMetaclass(_model_construction.ModelMetaclass):
-    if not TYPE_CHECKING:
+    _registry: list[Type["TableBase"]] = []
 
-        def __new__(
-            mcs, name: str, bases: tuple, namespace: dict[str, Any], **kwargs: Any
-        ) -> type:
-            mcs.is_constructing = True
-            cls = super().__new__(mcs, name, bases, namespace, **kwargs)
-            mcs.is_constructing = False
+    def __new__(
+        mcs, name: str, bases: tuple, namespace: dict[str, Any], **kwargs: Any
+    ) -> type:
+        mcs.is_constructing = True
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        mcs.is_constructing = False
 
-            # If we have already set the class's fields, we should wrap them
-            if hasattr(cls, "model_fields"):
-                cls.model_fields = {
-                    field: info
-                    if isinstance(info, DBFieldInfo)
-                    else DBFieldInfo.extend_field(
-                        info,
-                        primary_key=False,
-                        postgres_config=None,
-                        foreign_key=None,
-                        unique=False,
-                        index=False,
-                        check_expression=None,
-                    )
-                    for field, info in cls.model_fields.items()
-                    # NOTE: This is a hack to avoid the `modified_attrs` field
-                    # from being indexed in migrations. It should still be accessible
-                    # as a direct attribute on the model
-                    if field not in ["modified_attrs"]
-                }
+        # If we have already set the class's fields, we should wrap them
+        if hasattr(cls, "model_fields"):
+            cls.model_fields = {
+                field: info
+                if isinstance(info, DBFieldInfo)
+                else DBFieldInfo.extend_field(
+                    info,
+                    primary_key=False,
+                    postgres_config=None,
+                    foreign_key=None,
+                    unique=False,
+                    index=False,
+                    check_expression=None,
+                )
+                for field, info in cls.model_fields.items()
+            }
 
-            return cls
+        # Avoid registering HandlerBase itself
+        if cls.__name__ not in {"TableBase", "BaseModel"}:
+            DBModelMetaclass._registry.append(cls)
 
-        def __getattr__(self, key: str) -> Any:
-            # Inspired by the approach in our render logic
-            # https://github.com/piercefreeman/mountaineer/blob/fdda3a58c0fafebb43a58b4f3d410dbf44302fd6/mountaineer/render.py#L252
-            if self.is_constructing:
-                return super().__getattr__(key)
+        return cls
 
-            try:
-                return super().__getattr__(key)
-            except AttributeError:
-                # Determine if this field is defined within the spec
-                # If so, return it
-                if key in self.model_fields:
-                    return DBFieldClassDefinition(
-                        root_model=self,
-                        key=key,
-                        field_definition=self.model_fields[key],
-                    )
-                raise
+    def __getattr__(self, key: str) -> Any:
+        # Inspired by the approach in our render logic
+        # https://github.com/piercefreeman/mountaineer/blob/fdda3a58c0fafebb43a58b4f3d410dbf44302fd6/mountaineer/render.py#L252
+        if self.is_constructing:
+            return super().__getattr__(key)  # type: ignore
+
+        try:
+            return super().__getattr__(key)  # type: ignore
+        except AttributeError:
+            # Determine if this field is defined within the spec
+            # If so, return it
+            if key in self.model_fields:
+                return DBFieldClassDefinition(
+                    root_model=self,  # type: ignore
+                    key=key,
+                    field_definition=self.model_fields[key],
+                )
+            raise
+
+    @classmethod
+    def get_registry(cls):
+        return cls._registry
 
 
 class UniqueConstraint(BaseModel):
@@ -241,6 +245,9 @@ class UniqueConstraint(BaseModel):
 
 class IndexConstraint(BaseModel):
     columns: list[str]
+
+
+INTERNAL_TABLE_FIELDS = ["modified_attrs"]
 
 
 class TableBase(BaseModel, metaclass=DBModelMetaclass):

@@ -57,7 +57,7 @@ def _is_type_compatible(obj_type: Type, target_type: Any) -> float:
         return min(_is_type_compatible(obj_type, t) for t in get_args(target_type))
 
     # Handle Type[Values] like typehints where we want to typehint a class
-    if get_origin(target_type) == type:
+    if get_origin(target_type) == type:  # noqa: E721
         return _is_type_compatible(obj_type, get_args(target_type)[0])
 
     # Handle dict[str, str] like typehints
@@ -76,7 +76,7 @@ def _is_type_compatible(obj_type: Type, target_type: Any) -> float:
     # For lists, sets, and tuple objects make sure that each object matches
     # the target type
     if isinstance(obj_type, (list, set, tuple)):
-        if type(obj_type) != get_origin(target_type):
+        if type(obj_type) != get_origin(target_type):  # noqa: E721
             return float("inf")
         return max(
             _is_type_compatible(obj, get_args(target_type)[0]) for obj in obj_type
@@ -93,7 +93,7 @@ def remove_null_type(typehint: Type) -> Type:
     if get_origin(typehint) is Union or isinstance(typehint, types.UnionType):
         return Union[  # type: ignore
             tuple(  # type: ignore
-                [t for t in get_args(typehint) if t != type(None)]
+                [t for t in get_args(typehint) if t != type(None)]  # noqa: E721
             )
         ]
     return typehint
@@ -101,8 +101,8 @@ def remove_null_type(typehint: Type) -> Type:
 
 def has_null_type(typehint: Type) -> bool:
     if get_origin(typehint) is Union or isinstance(typehint, types.UnionType):
-        return any(arg == type(None) for arg in get_args(typehint))
-    return typehint == type(None)
+        return any(arg == type(None) for arg in get_args(typehint))  # noqa: E721
+    return typehint == type(None)  # noqa: E721
 
 
 def get_typevar_mapping(cls):

@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from iceaxe.migrations.actions import ColumnType, DatabaseActions, DryRunAction
 from iceaxe.migrations.db_memory_serializer import DatabaseMemorySerializer
 from iceaxe.migrations.db_stubs import DBTable
-from iceaxe.migrations.dependency import MigrationDependencies
 from iceaxe.migrations.generator import MigrationGenerator
 from iceaxe.migrations.migration import MigrationRevisionBase
 
@@ -134,13 +133,8 @@ def test_track_import():
 
     migration_generator.track_import(DatabaseMemorySerializer)
     migration_generator.track_import(MigrationRevisionBase)
-    migration_generator.track_import(
-        MigrationDependencies,
-        explicit="iceaxe.migrations.dependency.MigrationDependencies",
-    )
 
     assert dict(migration_generator.import_tracker) == {
-        "iceaxe.migrations.dependency": {"MigrationDependencies"},
         "iceaxe.migrations.migration": {"MigrationRevisionBase"},
         "iceaxe.migrations.db_memory_serializer": {"DatabaseMemorySerializer"},
     }

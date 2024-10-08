@@ -6,6 +6,7 @@ from os import environ
 from time import monotonic_ns
 
 from click import secho
+from rich.console import Console
 
 VERBOSITY_MAPPING = {
     "INFO": logging.INFO,
@@ -86,3 +87,5 @@ LOGGER = setup_logger(
     __name__,
     log_level=VERBOSITY_MAPPING[environ.get("ICEAXE_LOG_LEVEL", "WARNING")],
 )
+
+CONSOLE = Console()

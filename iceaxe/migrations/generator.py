@@ -6,15 +6,13 @@ from inspect import ismodule
 from json import dumps as json_dumps
 from time import time
 from types import ModuleType
-from typing import Any, Callable, Type
+from typing import Any, Callable, Sequence, Type
 
-from mountaineer import Depends
 from pydantic import BaseModel
 
 from iceaxe.migrations.actions import DatabaseActions, DryRunAction, DryRunComment
 from iceaxe.migrations.db_memory_serializer import DatabaseMemorySerializer
 from iceaxe.migrations.db_stubs import DBObject, DBObjectPointer
-from iceaxe.migrations.dependency import MigrationDependencies
 from iceaxe.migrations.migration import MigrationRevisionBase
 from iceaxe.migrations.migrator import Migrator
 
@@ -57,11 +55,11 @@ class MigrationGenerator:
 
     async def new_migration(
         self,
-        down_objects_with_dependencies: list[
-            tuple[DBObject, list[DBObject | DBObjectPointer]]
+        down_objects_with_dependencies: Sequence[
+            tuple[DBObject, Sequence[DBObject | DBObjectPointer]]
         ],
-        up_objects_with_dependencies: list[
-            tuple[DBObject, list[DBObject | DBObjectPointer]]
+        up_objects_with_dependencies: Sequence[
+            tuple[DBObject, Sequence[DBObject | DBObjectPointer]]
         ],
         down_revision: str | None,
         user_message: str | None,
@@ -74,11 +72,6 @@ class MigrationGenerator:
         # we can track the module.
         self.track_import(Migrator)
         self.track_import(MigrationRevisionBase)
-        self.track_import(
-            MigrationDependencies,
-            explicit="iceaxe.migrations.dependency.MigrationDependencies",
-        )
-        self.track_import(Depends)
 
         next_objects = [obj for obj, _ in up_objects_with_dependencies]
         previous_objects = [obj for obj, _ in down_objects_with_dependencies]

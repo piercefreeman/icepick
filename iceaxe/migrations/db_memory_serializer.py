@@ -6,7 +6,13 @@ from uuid import UUID
 from graphlib import TopologicalSorter
 from pydantic_core import PydanticUndefined
 
-from iceaxe.base import DBFieldInfo, IndexConstraint, TableBase, UniqueConstraint
+from iceaxe.base import (
+    INTERNAL_TABLE_FIELDS,
+    DBFieldInfo,
+    IndexConstraint,
+    TableBase,
+    UniqueConstraint,
+)
 from iceaxe.migrations.actions import (
     CheckConstraint,
     ColumnType,
@@ -231,6 +237,10 @@ class DatabaseHandler:
         # Handle the columns
         all_column_nodes: list[tuple[DBObject, list[DBObject]]] = []
         for field_name, field in table.model_fields.items():
+            # Only create user-columns
+            if field_name in INTERNAL_TABLE_FIELDS:
+                continue
+
             column_nodes = self._yield_nodes(
                 self.convert_column(field_name, field, table), dependencies=table_nodes
             )
@@ -258,7 +268,6 @@ class DatabaseHandler:
             raise ValueError(f"Annotation must be provided for {table.__name__}.{key}")
 
         is_nullable = has_null_type(info.annotation)
-        is_primary_key = info.primary_key
 
         # If we need to create enums or other db-backed types, we need to do that before
         # the column itself
@@ -297,7 +306,7 @@ class DatabaseHandler:
         if is_type_compatible(annotation, ALL_ENUM_TYPES):
             return TypeDeclarationResponse(
                 custom_type=DBType(
-                    name=annotation.__name__.lower(),
+                    name=annotation.__name__.lower(),  # type: ignore
                     values=frozenset([value.name for value in annotation]),  # type: ignore
                     reference_columns=frozenset({(table.get_table_name(), key)}),
                 ),
@@ -454,7 +463,7 @@ class DatabaseHandler:
         elif isinstance(child, tuple):
             node, existing_dependencies = child
 
-            all_dependencies: Sequence[NodeYieldType] = []
+            all_dependencies: list[NodeYieldType] = []
             all_dependencies += dependencies or []
             all_dependencies += existing_dependencies
 
