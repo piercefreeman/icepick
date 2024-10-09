@@ -1,5 +1,6 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from json import dumps as json_dumps, loads as json_loads
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -95,7 +96,11 @@ class DBConnection:
                         result_value.append(
                             select_raw(
                                 **{
-                                    field: value[field]
+                                    field: (
+                                        value[field]
+                                        if not info.is_json
+                                        else json_loads(value[field])
+                                    )
                                     for field, info in select_raw.model_fields.items()
                                     if not info.exclude
                                 }
@@ -148,6 +153,9 @@ class DBConnection:
                 and not info.autoincrement
                 and field not in auto_increment_keys
             ]
+            json_fields = {
+                field for field, info in model.model_fields.items() if info.is_json
+            }
             field_string = ", ".join(f'"{field}"' for field in fields)
             primary_key = self._get_primary_key(model)
 
@@ -159,7 +167,12 @@ class DBConnection:
             async with self._ensure_transaction():
                 for obj in model_objects:
                     obj_values = obj.model_dump()
-                    values = [obj_values[field] for field in fields]
+                    values = [
+                        obj_values[field]
+                        if field not in json_fields
+                        else json_dumps(obj_values[field])
+                        for field in fields
+                    ]
                     result = await self.conn.fetchrow(query, *values)
 
                     if primary_key and result:

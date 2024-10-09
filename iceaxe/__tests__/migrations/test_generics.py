@@ -3,7 +3,7 @@ from typing import Any, Type, Union
 
 import pytest
 
-from iceaxe.migrations.generics import (
+from iceaxe.generics import (
     _is_type_compatible,
     remove_null_type,
 )

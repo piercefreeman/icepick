@@ -1,6 +1,6 @@
 import pytest
 
-from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
+from iceaxe.__tests__.conf_models import ArtifactDemo, ComplexDemo, UserDemo
 from iceaxe.functions import func
 from iceaxe.queries import QueryBuilder
 from iceaxe.session import (
@@ -161,6 +161,22 @@ async def test_select(db_connection: DBConnection):
             UserDemo(id=user.id, name="John Doe", email="john@example.com"),
             "john@example.com",
         )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_select_complex(db_connection: DBConnection):
+    """
+    Ensure that we can serialize the complex types.
+
+    """
+    complex_obj = ComplexDemo(id=1, string_list=["a", "b", "c"], json_data={"a": "a"})
+    await db_connection.insert([complex_obj])
+
+    # Table selection
+    result = await db_connection.exec(QueryBuilder().select(ComplexDemo))
+    assert result == [
+        ComplexDemo(id=1, string_list=["a", "b", "c"], json_data={"a": "a"})
     ]
 
 

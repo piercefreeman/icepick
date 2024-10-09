@@ -19,6 +19,7 @@ async def db_connection():
     # Clear the old table from previous runs
     await conn.conn.fetch("DROP TABLE IF EXISTS artifactdemo CASCADE")
     await conn.conn.fetch("DROP TABLE IF EXISTS userdemo CASCADE")
+    await conn.conn.fetch("DROP TABLE IF EXISTS complexdemo CASCADE")
 
     # Create a test table
     await conn.conn.fetch("""
@@ -34,6 +35,14 @@ async def db_connection():
             id SERIAL PRIMARY KEY,
             title TEXT,
             user_id INT REFERENCES userdemo(id)
+        )
+        """)
+
+    await conn.conn.fetch("""
+        CREATE TABLE IF NOT EXISTS complexdemo (
+            id SERIAL PRIMARY KEY,
+            string_list TEXT[],
+            json_data JSON
         )
         """)
 
