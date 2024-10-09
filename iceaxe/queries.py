@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, Type, TypeVar
+from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, Unpack, overload
 
 from iceaxe.base import (
     DBFieldClassComparison,
@@ -15,6 +15,11 @@ from iceaxe.queries_str import (
     field_to_literal,
 )
 from iceaxe.typing import (
+    ALL_ENUM_TYPES,
+    DATE_TYPES,
+    JSON_WRAPPER_FALLBACK,
+    PRIMITIVE_TYPES,
+    PRIMITIVE_WRAPPER_TYPES,
     is_base_table,
     is_column,
     is_comparison,
@@ -22,8 +27,22 @@ from iceaxe.typing import (
     is_function_metadata_comparison,
 )
 
-T = TypeVar("T")
 P = TypeVar("P")
+
+T = TypeVar(
+    "T",
+    bound=TableBase
+    | ALL_ENUM_TYPES
+    | PRIMITIVE_TYPES
+    | PRIMITIVE_WRAPPER_TYPES
+    | DATE_TYPES
+    | JSON_WRAPPER_FALLBACK,
+)
+Ts = TypeVarTuple("Ts")
+
+ExecTupleInput = Unpack[tuple[T | Type[T], *Ts]]
+ExecTupleOutput = tuple[T, *Ts]
+
 
 QueryType = TypeVar("QueryType", bound=Literal["SELECT", "INSERT", "UPDATE", "DELETE"])
 
@@ -59,14 +78,27 @@ class QueryBuilder(Generic[P, QueryType]):
         self.text_query: str | None = None
         self.text_variables: list[Any] = []
 
-    def select(self, fields: T) -> QueryBuilder[T, Literal["SELECT"]]:
+    @overload
+    def select(self, fields: T | Type[T]) -> QueryBuilder[T, Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self, fields: tuple[T | Type[T], *Ts]
+    ) -> QueryBuilder[tuple[T, *Ts], Literal["SELECT"]]: ...
+
+    def select(
+        self, fields: T | Type[T] | tuple[T | Type[T], *Ts]
+    ) -> (
+        QueryBuilder[tuple[T, *Ts], Literal["SELECT"]]
+        | QueryBuilder[T, Literal["SELECT"]]
+    ):
         all_fields: tuple[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...
         ]
         if not isinstance(fields, tuple):
             all_fields = (fields,)  # type: ignore
         else:
-            all_fields = fields
+            all_fields = fields  # type: ignore
 
         # Verify the field type
         for field in all_fields:
