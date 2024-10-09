@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+from datetime import date, datetime, time, timedelta
+from enum import Enum, IntEnum, StrEnum
 from inspect import isclass
-from typing import TYPE_CHECKING, Any, TypeGuard
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Type,
+    TypeGuard,
+)
+from uuid import UUID
 
 if TYPE_CHECKING:
     from iceaxe.base import (
@@ -11,6 +19,13 @@ if TYPE_CHECKING:
     )
     from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
     from iceaxe.queries_str import QueryLiteral
+
+
+ALL_ENUM_TYPES = Type[Enum | StrEnum | IntEnum]
+PRIMITIVE_TYPES = int | float | str | bool | bytes | UUID
+PRIMITIVE_WRAPPER_TYPES = list[PRIMITIVE_TYPES] | PRIMITIVE_TYPES
+DATE_TYPES = datetime | date | time | timedelta
+JSON_WRAPPER_FALLBACK = list[Any] | dict[Any, Any]
 
 
 def is_base_table(obj: Any) -> TypeGuard[type[TableBase]]:
@@ -53,3 +68,7 @@ def column(obj: Any):
     if not is_column(obj):
         raise ValueError(f"Invalid column: {obj}")
     return obj
+
+
+class MyObj:
+    pass

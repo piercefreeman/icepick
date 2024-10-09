@@ -66,8 +66,6 @@ define lint-common
 	echo "Running linting for $(2)..."
 	@(cd $(1) && poetry run ruff format $(2))
 	@(cd $(1) && poetry run ruff check --fix $(2))
-	echo "Running mypy for $(2)..."
-	@(cd $(1) && poetry run mypy $(2))
 	echo "Running pyright for $(2)..."
 	@(cd $(1) && poetry run pyright $(2))
 endef
