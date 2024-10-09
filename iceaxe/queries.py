@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, Unpack, overload
+from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, overload
 
 from iceaxe.base import (
     DBFieldClassComparison,
     DBFieldClassDefinition,
+    DBModelMetaclass,
     TableBase,
 )
 from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
@@ -32,6 +33,7 @@ P = TypeVar("P")
 T = TypeVar(
     "T",
     bound=TableBase
+    | DBModelMetaclass
     | ALL_ENUM_TYPES
     | PRIMITIVE_TYPES
     | PRIMITIVE_WRAPPER_TYPES
@@ -39,9 +41,6 @@ T = TypeVar(
     | JSON_WRAPPER_FALLBACK,
 )
 Ts = TypeVarTuple("Ts")
-
-ExecTupleInput = Unpack[tuple[T | Type[T], *Ts]]
-ExecTupleOutput = tuple[T, *Ts]
 
 
 QueryType = TypeVar("QueryType", bound=Literal["SELECT", "INSERT", "UPDATE", "DELETE"])
@@ -319,7 +318,21 @@ class QueryBuilder(Generic[P, QueryType]):
 #
 
 
-def select(fields: T) -> QueryBuilder[T, Literal["SELECT"]]:
+@overload
+def select(fields: T | Type[T]) -> QueryBuilder[T, Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[T | Type[T], *Ts],
+) -> QueryBuilder[tuple[T, *Ts], Literal["SELECT"]]: ...
+
+
+def select(
+    fields: T | Type[T] | tuple[T | Type[T], *Ts],
+) -> (
+    QueryBuilder[tuple[T, *Ts], Literal["SELECT"]] | QueryBuilder[T, Literal["SELECT"]]
+):
     return QueryBuilder().select(fields)
 
 

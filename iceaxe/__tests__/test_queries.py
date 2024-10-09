@@ -1,8 +1,10 @@
+from typing import TYPE_CHECKING, Literal
+
 import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
 from iceaxe.functions import func
-from iceaxe.queries import QueryBuilder
+from iceaxe.queries import QueryBuilder, select
 
 
 def test_select():
@@ -171,3 +173,22 @@ def test_invalid_join_condition():
 def test_invalid_group_by():
     with pytest.raises(ValueError):
         QueryBuilder().select(UserDemo.id).group_by("invalid field")
+
+
+#
+# Typehinting
+# These checks are run as part of the static typechecking we do
+# for our codebase, not as part of the pytest runtime.
+#
+
+
+def test_select_single_typehint():
+    query = select(UserDemo)
+    if TYPE_CHECKING:
+        _: QueryBuilder[UserDemo, Literal["SELECT"]] = query
+
+
+def test_select_multiple_typehints():
+    query = select((UserDemo, UserDemo.id, UserDemo.name))
+    if TYPE_CHECKING:
+        _: QueryBuilder[tuple[UserDemo, int, str], Literal["SELECT"]] = query
