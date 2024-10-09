@@ -13,6 +13,11 @@ from iceaxe.base import (
     TableBase,
     UniqueConstraint,
 )
+from iceaxe.generics import (
+    has_null_type,
+    is_type_compatible,
+    remove_null_type,
+)
 from iceaxe.migrations.actions import (
     CheckConstraint,
     ColumnType,
@@ -28,11 +33,6 @@ from iceaxe.migrations.db_stubs import (
     DBTable,
     DBType,
     DBTypePointer,
-)
-from iceaxe.migrations.generics import (
-    has_null_type,
-    is_type_compatible,
-    remove_null_type,
 )
 from iceaxe.postgres import PostgresDateTime, PostgresTime
 from iceaxe.typing import (
@@ -355,9 +355,14 @@ class DatabaseHandler:
             else:
                 raise ValueError(f"Unsupported date type: {annotation}")
         elif is_type_compatible(annotation, JSON_WRAPPER_FALLBACK):
-            return TypeDeclarationResponse(
-                primitive_type=ColumnType.JSON,
-            )
+            if info.is_json:
+                return TypeDeclarationResponse(
+                    primitive_type=ColumnType.JSON,
+                )
+            else:
+                raise ValueError(
+                    f"JSON fields must have Field(is_json=True) specified: {annotation}"
+                )
 
         raise ValueError(f"Unsupported column type: {annotation}")
 

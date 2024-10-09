@@ -18,6 +18,12 @@ class ArtifactDemo(TableBase):
     user_id: int = Field(foreign_key="userdemo.id")
 
 
+class ComplexDemo(TableBase):
+    id: int = Field(primary_key=True, default=None)
+    string_list: list[str]
+    json_data: dict[str, str] = Field(is_json=True)
+
+
 @contextmanager
 def run_profile(request):
     TESTS_ROOT = Path.cwd()

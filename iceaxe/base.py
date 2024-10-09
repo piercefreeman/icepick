@@ -31,6 +31,7 @@ class DBFieldInputs(_FieldInfoInputs, total=False):
     unique: bool
     index: bool
     check_expression: str | None
+    is_json: bool
 
 
 class DBFieldInfo(FieldInfo):
@@ -50,6 +51,8 @@ class DBFieldInfo(FieldInfo):
     index: bool = False
     check_expression: str | None = None
 
+    is_json: bool = False
+
     def __init__(self, **kwargs: Unpack[DBFieldInputs]):
         # The super call should persist all kwargs as _attributes_set
         # We're intentionally passing kwargs that we know aren't in the
@@ -64,6 +67,7 @@ class DBFieldInfo(FieldInfo):
         self.unique = kwargs.pop("unique", False)
         self.index = kwargs.pop("index", False)
         self.check_expression = kwargs.pop("check_expression", None)
+        self.is_json = kwargs.pop("is_json", False)
 
     @classmethod
     def extend_field(
@@ -75,11 +79,16 @@ class DBFieldInfo(FieldInfo):
         unique: bool,
         index: bool,
         check_expression: str | None,
+        is_json: bool,
     ):
         return cls(
             primary_key=primary_key,
             postgres_config=postgres_config,
             foreign_key=foreign_key,
+            unique=unique,
+            index=index,
+            check_expression=check_expression,
+            is_json=is_json,
             **field._attributes_set,  # type: ignore
         )
 
@@ -98,6 +107,7 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
         unique: bool = False,
         index: bool = False,
         check_expression: str | None = None,
+        is_json: bool = False,
         default: Any = PydanticUndefined,
         *args: P.args,
         **kwargs: P.kwargs,
@@ -116,6 +126,7 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
                 unique=unique,
                 index=index,
                 check_expression=check_expression,
+                is_json=is_json,
             ),
         )
 
@@ -205,6 +216,7 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
                     unique=False,
                     index=False,
                     check_expression=None,
+                    is_json=False,
                 )
                 for field, info in cls.model_fields.items()
             }

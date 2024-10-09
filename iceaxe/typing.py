@@ -68,7 +68,3 @@ def column(obj: Any):
     if not is_column(obj):
         raise ValueError(f"Invalid column: {obj}")
     return obj
-
-
-class MyObj:
-    pass
