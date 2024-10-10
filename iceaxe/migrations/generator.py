@@ -142,10 +142,10 @@ class MigrationGenerator:
                 )
             elif isinstance(action, DryRunComment):
                 if action.previous_line:
+                    # Create a comment that's on the same line
                     previous_line = code_lines.pop()
-                    code_lines.append(
-                        f"{previous_line}  # {action.text.replace('\n', ' ')}"
-                    )
+                    new_comment = action.text.replace("\n", " ")
+                    code_lines.append(f"{previous_line}  # {new_comment}")
                 else:
                     comment_lines = action.text.split("\n")
                     for line in comment_lines:

@@ -27,14 +27,19 @@ class ActionTopologicalSorter:
                     self.nodes.add(dep)
                     self.graph[dep] = []
 
+        # Order based on the original yield / creation order of the nodes
+        self.node_to_ordering = {node: i for i, node in enumerate(self.graph.keys())}
+
     def sort(self):
         result = []
         root_nodes_queued = sorted(
             [node for node in self.nodes if self.in_degree[node] == 0],
             key=self.node_key,
         )
-        if not root_nodes_queued:
-            return result
+        if not root_nodes_queued and self.nodes:
+            raise ValueError("Graph contains a cycle")
+        elif not root_nodes_queued:
+            return []
 
         # Sort by the table name and then by the node representation
         root_nodes_queued.sort(key=self.node_key)
@@ -76,7 +81,9 @@ class ActionTopologicalSorter:
                         new_ready.append(dependent)
 
             # Add newly ready nodes to queue in sorted order
-            queue.extend(sorted(new_ready, key=self.node_key))
+            queue.extend(
+                sorted(new_ready, key=lambda node: self.node_to_ordering[node])
+            )
 
         if len(result) != len(self.nodes):
             raise ValueError("Graph contains a cycle")

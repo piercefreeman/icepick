@@ -70,8 +70,18 @@ async def test_from_scratch_migration():
     )
 
     assert actions == [
+        DryRunAction(
+            fn=actor.add_type,
+            kwargs={
+                "type_name": "oldvalues",
+                "values": [
+                    "A",
+                ],
+            },
+        ),
         DryRunComment(
             text="\n" "NEW TABLE: modela\n",
+            previous_line=False,
         ),
         DryRunAction(
             fn=actor.add_table,
@@ -92,26 +102,7 @@ async def test_from_scratch_migration():
         DryRunAction(
             fn=actor.add_not_null,
             kwargs={
-                "table_name": "modela",
                 "column_name": "id",
-            },
-        ),
-        DryRunAction(
-            fn=actor.add_type,
-            kwargs={
-                "type_name": "oldvalues",
-                "values": [
-                    "A",
-                ],
-            },
-        ),
-        DryRunAction(
-            fn=actor.add_column,
-            kwargs={
-                "column_name": "was_nullable",
-                "custom_data_type": None,
-                "explicit_data_is_list": False,
-                "explicit_data_type": ColumnType.VARCHAR,
                 "table_name": "modela",
             },
         ),
@@ -128,8 +119,18 @@ async def test_from_scratch_migration():
         DryRunAction(
             fn=actor.add_not_null,
             kwargs={
-                "table_name": "modela",
                 "column_name": "animal",
+                "table_name": "modela",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_column,
+            kwargs={
+                "column_name": "was_nullable",
+                "custom_data_type": None,
+                "explicit_data_is_list": False,
+                "explicit_data_type": ColumnType.VARCHAR,
+                "table_name": "modela",
             },
         ),
         DryRunAction(
@@ -190,6 +191,16 @@ async def test_diff_migration():
     )
     assert actions == [
         DryRunAction(
+            fn=actor.add_type,
+            kwargs={
+                "type_name": "newvalues",
+                "values": [
+                    "A",
+                    "B",
+                ],
+            },
+        ),
+        DryRunAction(
             fn=actor.add_column,
             kwargs={
                 "column_name": "name",
@@ -202,29 +213,9 @@ async def test_diff_migration():
         DryRunAction(
             fn=actor.add_not_null,
             kwargs={
-                "table_name": "modela",
                 "column_name": "name",
-            },
-        ),
-        DryRunAction(
-            fn=actor.add_type,
-            kwargs={
-                "type_name": "newvalues",
-                "values": [
-                    "A",
-                    "B",
-                ],
-            },
-        ),
-        DryRunAction(
-            fn=actor.add_not_null,
-            kwargs={
-                "column_name": "was_nullable",
                 "table_name": "modela",
             },
-        ),
-        DryRunComment(
-            text=ANY,
         ),
         DryRunAction(
             fn=actor.modify_column_type,
@@ -233,6 +224,17 @@ async def test_diff_migration():
                 "custom_data_type": "newvalues",
                 "explicit_data_is_list": False,
                 "explicit_data_type": None,
+                "table_name": "modela",
+            },
+        ),
+        DryRunComment(
+            text="TODO: Perform a migration of values across types",
+            previous_line=True,
+        ),
+        DryRunAction(
+            fn=actor.add_not_null,
+            kwargs={
+                "column_name": "was_nullable",
                 "table_name": "modela",
             },
         ),
@@ -276,10 +278,26 @@ async def test_duplicate_enum_migration():
     )
 
     assert actions == [
-        DryRunComment(text="\nNEW TABLE: model1\n"),
-        DryRunAction(fn=actor.add_table, kwargs={"table_name": "model1"}),
-        DryRunComment(text="\nNEW TABLE: model2\n"),
-        DryRunAction(fn=actor.add_table, kwargs={"table_name": "model2"}),
+        DryRunAction(
+            fn=actor.add_type,
+            kwargs={
+                "type_name": "enumvalues",
+                "values": [
+                    "A",
+                    "B",
+                ],
+            },
+        ),
+        DryRunComment(
+            text="\n" "NEW TABLE: model1\n",
+            previous_line=False,
+        ),
+        DryRunAction(
+            fn=actor.add_table,
+            kwargs={
+                "table_name": "model1",
+            },
+        ),
         DryRunAction(
             fn=actor.add_column,
             kwargs={
@@ -291,23 +309,11 @@ async def test_duplicate_enum_migration():
             },
         ),
         DryRunAction(
-            fn=actor.add_not_null, kwargs={"column_name": "id", "table_name": "model1"}
-        ),
-        DryRunAction(
-            fn=actor.add_type, kwargs={"type_name": "enumvalues", "values": ["A", "B"]}
-        ),
-        DryRunAction(
-            fn=actor.add_column,
+            fn=actor.add_not_null,
             kwargs={
                 "column_name": "id",
-                "custom_data_type": None,
-                "explicit_data_is_list": False,
-                "explicit_data_type": ColumnType.INTEGER,
-                "table_name": "model2",
+                "table_name": "model1",
             },
-        ),
-        DryRunAction(
-            fn=actor.add_not_null, kwargs={"column_name": "id", "table_name": "model2"}
         ),
         DryRunAction(
             fn=actor.add_column,
@@ -321,36 +327,73 @@ async def test_duplicate_enum_migration():
         ),
         DryRunAction(
             fn=actor.add_not_null,
-            kwargs={"column_name": "value", "table_name": "model1"},
-        ),
-        DryRunAction(
-            fn=actor.add_column,
             kwargs={
                 "column_name": "value",
-                "custom_data_type": "enumvalues",
-                "explicit_data_is_list": False,
-                "explicit_data_type": None,
-                "table_name": "model2",
+                "table_name": "model1",
             },
-        ),
-        DryRunAction(
-            fn=actor.add_not_null,
-            kwargs={"column_name": "value", "table_name": "model2"},
         ),
         DryRunAction(
             fn=actor.add_constraint,
             kwargs={
-                "columns": ["id"],
+                "columns": [
+                    "id",
+                ],
                 "constraint": ConstraintType.PRIMARY_KEY,
                 "constraint_args": None,
                 "constraint_name": "model1_pkey",
                 "table_name": "model1",
             },
         ),
+        DryRunComment(
+            text="\n" "NEW TABLE: model2\n",
+            previous_line=False,
+        ),
+        DryRunAction(
+            fn=actor.add_table,
+            kwargs={
+                "table_name": "model2",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_column,
+            kwargs={
+                "column_name": "id",
+                "custom_data_type": None,
+                "explicit_data_is_list": False,
+                "explicit_data_type": ColumnType.INTEGER,
+                "table_name": "model2",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_not_null,
+            kwargs={
+                "column_name": "id",
+                "table_name": "model2",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_column,
+            kwargs={
+                "column_name": "value",
+                "custom_data_type": "enumvalues",
+                "explicit_data_is_list": False,
+                "explicit_data_type": None,
+                "table_name": "model2",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_not_null,
+            kwargs={
+                "column_name": "value",
+                "table_name": "model2",
+            },
+        ),
         DryRunAction(
             fn=actor.add_constraint,
             kwargs={
-                "columns": ["id"],
+                "columns": [
+                    "id",
+                ],
                 "constraint": ConstraintType.PRIMARY_KEY,
                 "constraint_args": None,
                 "constraint_name": "model2_pkey",
@@ -536,7 +579,10 @@ def test_enum_column_assignment(clear_all_database_objects):
     migrator = DatabaseMemorySerializer()
     db_objects = list(migrator.delegate([ExampleModel1, ExampleModel2]))
     assert db_objects == [
-        (DBTable(table_name="examplemodel1"), []),
+        (
+            DBTable(table_name="examplemodel1"),
+            [],
+        ),
         (
             DBColumn(
                 table_name="examplemodel1",
@@ -545,16 +591,17 @@ def test_enum_column_assignment(clear_all_database_objects):
                 column_is_list=False,
                 nullable=False,
             ),
-            [DBTable(table_name="examplemodel1")],
+            [
+                DBTable(table_name="examplemodel1"),
+            ],
         ),
         (
             DBType(
                 name="commonenum",
                 values=frozenset({"B", "A"}),
-                # This is the important part where we track the reference columns
                 reference_columns=frozenset({("examplemodel1", "value")}),
             ),
-            [DBTable(table_name="examplemodel1")],
+            [],
         ),
         (
             DBColumn(
@@ -585,7 +632,7 @@ def test_enum_column_assignment(clear_all_database_objects):
             [
                 DBType(
                     name="commonenum",
-                    values=frozenset({"A", "B"}),
+                    values=frozenset({"B", "A"}),
                     reference_columns=frozenset({("examplemodel1", "value")}),
                 ),
                 DBTable(table_name="examplemodel1"),
@@ -605,7 +652,10 @@ def test_enum_column_assignment(clear_all_database_objects):
                 ),
             ],
         ),
-        (DBTable(table_name="examplemodel2"), []),
+        (
+            DBTable(table_name="examplemodel2"),
+            [],
+        ),
         (
             DBColumn(
                 table_name="examplemodel2",
@@ -614,16 +664,17 @@ def test_enum_column_assignment(clear_all_database_objects):
                 column_is_list=False,
                 nullable=False,
             ),
-            [DBTable(table_name="examplemodel2")],
+            [
+                DBTable(table_name="examplemodel2"),
+            ],
         ),
         (
             DBType(
                 name="commonenum",
                 values=frozenset({"B", "A"}),
-                # This is the important part where we track the reference columns
                 reference_columns=frozenset({("examplemodel2", "value")}),
             ),
-            [DBTable(table_name="examplemodel2")],
+            [],
         ),
         (
             DBColumn(
@@ -904,5 +955,5 @@ def test_order_db_objects_sorts_by_table():
         if isinstance(action, (DBTable, DBColumn, DBConstraint))
     ]
 
-    # Table + 3 columns + 1 primary constraint
+    # Table 3 columns 1 primary constraint
     assert table_order == ["modela"] * 5 + ["modelb"] * 5

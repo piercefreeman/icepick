@@ -42,7 +42,7 @@ def test_simple_dag():
     D = MockNode(name="D")
     graph = {D: [B, C], C: [A], B: [A], A: []}
     result = custom_topological_sort(graph)
-    assert list(result.keys()) == [A, B, C, D]
+    assert list(result.keys()) == [A, C, B, D]
 
 
 def test_disconnected_graph():
@@ -179,7 +179,7 @@ def test_large_graph_performance():
     result = custom_topological_sort(large_graph)
     end_time = time.time()
     assert len(result) == 1000
-    assert end_time - start_time < 5  # Assuming it should complete within 5 seconds
+    assert end_time - start_time < 5
 
 
 def test_graph_with_isolated_nodes():
@@ -195,7 +195,6 @@ def test_graph_with_isolated_nodes():
     assert result[E] < result[D]
 
 
-# Parameterized test for different graph structures
 @pytest.mark.parametrize(
     "graph, expected_order",
     [
@@ -223,8 +222,11 @@ def test_various_graph_structures(graph, expected_order):
     assert [node.name for node in result.keys()] == expected_order
 
 
-# Test for consistent results with same input
 def test_consistent_results():
+    """
+    Test for consistent results with same input
+
+    """
     A = MockNode(name="A", table_name="table1")
     B = MockNode(name="B", table_name="table1")
     C = MockNode(name="C", table_name="table2")
