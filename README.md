@@ -8,8 +8,8 @@ to be as close as possible to raw-[asyncpg](https://github.com/MagicStack/asyncp
 expect in Python and it should bidirectionally sync to the database.
 - 🐘 **Postgres only**: Leverage native Postgres features and simplify the implementation.
 - ⚡ **Common things are easy, rare things are possible**: 99% of the SQL queries we write are
-vanilla SELECT/INSERT/UPDATEs. If you're writing _really_ complex queries, these are better
-done by hand so you can see exactly what SQL will be run by.
+vanilla SELECT/INSERT/UPDATEs. These should be natively supported by your ORM. If you're writing _really_
+complex queries, these are better done by hand so you can see exactly what SQL will be run.
 
 Iceaxe is in early alpha. It's also an independent project. It's compatible with the [Mountaineer](https://github.com/piercefreeman/mountaineer) ecosystem, but you can use it in whatever
 project and web framework you're using.
@@ -217,5 +217,4 @@ network connections in the first place.
 
 ## TODOs
 
-- [ ] Properly resolve select(Type[TableBase]) to return an instance of TableBase.
 - [ ] Additional documentation with usage examples.

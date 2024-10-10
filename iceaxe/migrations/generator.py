@@ -141,9 +141,15 @@ class MigrationGenerator:
                     f"await migrator.actor.{migrator_signature}({kwargs})"
                 )
             elif isinstance(action, DryRunComment):
-                comment_lines = action.text.split("\n")
-                for line in comment_lines:
-                    code_lines.append(f"# {line}")
+                if action.previous_line:
+                    # Create a comment that's on the same line
+                    previous_line = code_lines.pop()
+                    new_comment = action.text.replace("\n", " ")
+                    code_lines.append(f"{previous_line}  # {new_comment}")
+                else:
+                    comment_lines = action.text.split("\n")
+                    for line in comment_lines:
+                        code_lines.append(f"# {line}")
             else:
                 raise ValueError(f"Unknown action type: {action}")
 

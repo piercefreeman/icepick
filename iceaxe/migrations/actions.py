@@ -135,6 +135,7 @@ class DryRunAction:
 @dataclass
 class DryRunComment:
     text: str
+    previous_line: bool = False
 
 
 def assert_is_safe_sql_identifier(identifier: str):
@@ -680,6 +681,8 @@ class DatabaseActions:
             self.prod_sqls.append(sql)
             await self.db_connection.conn.execute(sql)
 
-    def add_comment(self, text: str):
+    def add_comment(self, text: str, previous_line: bool = False):
         if self.dry_run:
-            self.dry_run_actions.append(DryRunComment(text=text))
+            self.dry_run_actions.append(
+                DryRunComment(text=text, previous_line=previous_line)
+            )

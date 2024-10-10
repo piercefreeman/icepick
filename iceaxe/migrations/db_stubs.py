@@ -153,15 +153,6 @@ class DBColumn(DBColumnBase, DBObject):
             self.column_type != previous.column_type
             or self.column_is_list != previous.column_is_list
         ):
-            previous_column_metadata = " (is list)" if previous.column_is_list else ""
-            new_column_metadata = " (is list)" if self.column_is_list else ""
-
-            actor.add_comment(
-                "Migrating column type from "
-                f"{previous.column_type.name}{previous_column_metadata} to {self.column_type.name}{new_column_metadata}\n"
-                "Changing column type does not perform a migration of values.\n"
-                "Typically you'll want to create a new column, migrate values, and drop the old column instead."
-            )
             await actor.modify_column_type(
                 self.table_name,
                 self.column_name,
@@ -176,6 +167,9 @@ class DBColumn(DBColumnBase, DBObject):
                     if isinstance(self.column_type, DBTypePointer)
                     else None
                 ),
+            )
+            actor.add_comment(
+                "TODO: Perform a migration of values across types", previous_line=True
             )
 
         if not self.nullable and previous.nullable:
