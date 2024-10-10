@@ -869,3 +869,40 @@ async def test_datetimes(
     ]
 
     compare_db_objects(db_objects, base_db_objects + expected_db_objects)
+
+
+def test_order_db_objects_sorts_by_table():
+    """
+    Unless there are some explicit cross-table dependencies, we should group
+    table operations together in one code block.
+
+    """
+
+    class OldValues(Enum):
+        A = "A"
+
+    class ModelA(TableBase):
+        id: int = Field(primary_key=True)
+        animal: OldValues
+        was_nullable: str | None
+
+    class ModelB(TableBase):
+        id: int = Field(primary_key=True)
+        animal: OldValues
+        was_nullable: str | None
+
+    migrator = DatabaseMemorySerializer()
+
+    db_objects = list(migrator.delegate([ModelA, ModelB]))
+    next_ordering = migrator.order_db_objects(db_objects)
+
+    sorted_actions = sorted(next_ordering.items(), key=lambda x: x[1])
+
+    table_order = [
+        action.table_name
+        for action, _ in sorted_actions
+        if isinstance(action, (DBTable, DBColumn, DBConstraint))
+    ]
+
+    # Table + 3 columns + 1 primary constraint
+    assert table_order == ["modela"] * 5 + ["modelb"] * 5

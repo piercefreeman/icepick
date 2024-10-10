@@ -1,9 +1,9 @@
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from inspect import isgenerator
 from typing import Any, Generator, Sequence, Type
 from uuid import UUID
 
-from graphlib import TopologicalSorter
 from pydantic_core import PydanticUndefined
 
 from iceaxe.base import (
@@ -18,6 +18,7 @@ from iceaxe.generics import (
     is_type_compatible,
     remove_null_type,
 )
+from iceaxe.migrations.action_sorter import ActionTopologicalSorter
 from iceaxe.migrations.actions import (
     CheckConstraint,
     ColumnType,
@@ -41,6 +42,13 @@ from iceaxe.typing import (
     JSON_WRAPPER_FALLBACK,
     PRIMITIVE_WRAPPER_TYPES,
 )
+
+
+@dataclass
+class NodeDefinition:
+    node: DBObject
+    dependencies: list[DBObject]
+    force_no_dependencies: bool
 
 
 class DatabaseMemorySerializer:
@@ -115,8 +123,8 @@ class DatabaseMemorySerializer:
         }
 
         # Construct the directed acyclic graph
-        ts = TopologicalSorter(graph_edges)
-        return {obj: i for i, obj in enumerate(ts.static_order())}
+        ts = ActionTopologicalSorter(graph_edges)
+        return {obj: i for i, obj in enumerate(ts.sort())}
 
     async def build_actions(
         self,
@@ -208,7 +216,7 @@ class TypeDeclarationResponse(DBObject):
         raise NotImplementedError()
 
 
-NodeYieldType = DBObject | tuple[DBObject, Sequence[DBObject]]
+NodeYieldType = DBObject | NodeDefinition
 
 
 class DatabaseHandler:
@@ -225,7 +233,8 @@ class DatabaseHandler:
 
     def convert(self, tables: list[Type[TableBase]]):
         for model in sorted(tables, key=lambda model: model.get_table_name()):
-            yield from self.convert_table(model)
+            for node in self.convert_table(model):
+                yield (node.node, node.dependencies)
 
     def convert_table(self, table: Type[TableBase]):
         # Handle the table itself
@@ -233,7 +242,7 @@ class DatabaseHandler:
         yield from table_nodes
 
         # Handle the columns
-        all_column_nodes: list[tuple[DBObject, list[DBObject]]] = []
+        all_column_nodes: list[NodeDefinition] = []
         for field_name, field in table.model_fields.items():
             # Only create user-columns
             if field_name in INTERNAL_TABLE_FIELDS:
@@ -271,9 +280,11 @@ class DatabaseHandler:
         # the column itself
         db_annotation = self.handle_column_type(key, info, table)
         column_type: DBTypePointer | ColumnType
-        column_dependencies: list[tuple[DBObject, list[DBObject]]] = []
+        column_dependencies: list[NodeDefinition] = []
         if db_annotation.custom_type:
-            dependencies = self._yield_nodes(db_annotation.custom_type)
+            dependencies = self._yield_nodes(
+                db_annotation.custom_type, force_no_dependencies=True
+            )
             column_dependencies += dependencies
             yield from dependencies
 
@@ -468,11 +479,14 @@ class DatabaseHandler:
         self,
         child: NodeYieldType | Generator[NodeYieldType, None, None],
         dependencies: Sequence[NodeYieldType] | None = None,
-    ) -> list[tuple[DBObject, list[DBObject]]]:
+        force_no_dependencies: bool = False,
+    ) -> list[NodeDefinition]:
         """
         Given potentially nested nodes, merge them into a flat list of nodes
         with dependencies.
 
+        :param force_no_dependencies: If specified, we will never merge this node
+            with any upstream dependencies.
         """
 
         def _format_dependencies(dependencies: Sequence[NodeYieldType]):
@@ -481,10 +495,9 @@ class DatabaseHandler:
             for value in dependencies:
                 if isinstance(value, DBObject):
                     all_dependencies.append(value)
-                elif isinstance(value, tuple):
-                    node, existing_dependencies = value
-                    all_dependencies.append(node)
-                    all_dependencies += existing_dependencies
+                elif isinstance(value, NodeDefinition):
+                    all_dependencies.append(value.node)
+                    all_dependencies += value.dependencies
                 else:
                     raise ValueError(f"Unsupported dependency type: {value}")
 
@@ -494,22 +507,28 @@ class DatabaseHandler:
                 key=lambda x: x.representation(),
             )
 
-        results: list[tuple[DBObject, list[DBObject]]] = []
+        results: list[NodeDefinition] = []
 
         if isinstance(child, DBObject):
             # No dependencies list is provided, let's yield a new one
-            results.append((child, _format_dependencies(dependencies or [])))
-        elif isinstance(child, tuple):
-            node, existing_dependencies = child
-
+            results.append(
+                NodeDefinition(
+                    node=child,
+                    dependencies=_format_dependencies(dependencies or []),
+                    force_no_dependencies=force_no_dependencies,
+                )
+            )
+        elif isinstance(child, NodeDefinition):
             all_dependencies: list[NodeYieldType] = []
-            all_dependencies += dependencies or []
-            all_dependencies += existing_dependencies
+            if not child.force_no_dependencies:
+                all_dependencies += dependencies or []
+            all_dependencies += child.dependencies
 
             results.append(
-                (
-                    node,
-                    _format_dependencies(all_dependencies),
+                NodeDefinition(
+                    node=child.node,
+                    dependencies=_format_dependencies(all_dependencies),
+                    force_no_dependencies=force_no_dependencies,
                 )
             )
         elif isgenerator(child):
