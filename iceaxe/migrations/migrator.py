@@ -1,7 +1,7 @@
 from typing import cast
 
 from iceaxe.logging import LOGGER
-from iceaxe.migrations.actions import DatabaseActions
+from iceaxe.schemas.actions import DatabaseActions
 from iceaxe.session import DBConnection
 
 

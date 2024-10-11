@@ -1,4 +1,4 @@
-from iceaxe.migrations.db_stubs import DBType
+from iceaxe.schemas.db_stubs import DBType
 
 
 def test_merge_type_columns():

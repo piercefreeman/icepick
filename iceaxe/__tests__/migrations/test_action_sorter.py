@@ -1,8 +1,8 @@
 import pytest
 
 from iceaxe.migrations.action_sorter import ActionTopologicalSorter
-from iceaxe.migrations.actions import DatabaseActions
-from iceaxe.migrations.db_stubs import DBObject
+from iceaxe.schemas.actions import DatabaseActions
+from iceaxe.schemas.db_stubs import DBObject
 
 
 class MockNode(DBObject):

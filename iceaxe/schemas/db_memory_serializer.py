@@ -19,14 +19,15 @@ from iceaxe.generics import (
     remove_null_type,
 )
 from iceaxe.migrations.action_sorter import ActionTopologicalSorter
-from iceaxe.migrations.actions import (
+from iceaxe.postgres import PostgresDateTime, PostgresTime
+from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,
     ConstraintType,
     DatabaseActions,
     ForeignKeyConstraint,
 )
-from iceaxe.migrations.db_stubs import (
+from iceaxe.schemas.db_stubs import (
     DBColumn,
     DBConstraint,
     DBObject,
@@ -35,7 +36,6 @@ from iceaxe.migrations.db_stubs import (
     DBType,
     DBTypePointer,
 )
-from iceaxe.postgres import PostgresDateTime, PostgresTime
 from iceaxe.typing import (
     ALL_ENUM_TYPES,
     DATE_TYPES,

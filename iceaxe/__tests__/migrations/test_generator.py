@@ -5,11 +5,11 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from iceaxe.migrations.actions import ColumnType, DatabaseActions, DryRunAction
-from iceaxe.migrations.db_memory_serializer import DatabaseMemorySerializer
-from iceaxe.migrations.db_stubs import DBTable
 from iceaxe.migrations.generator import MigrationGenerator
 from iceaxe.migrations.migration import MigrationRevisionBase
+from iceaxe.schemas.actions import ColumnType, DatabaseActions, DryRunAction
+from iceaxe.schemas.db_memory_serializer import DatabaseMemorySerializer
+from iceaxe.schemas.db_stubs import DBTable
 
 
 @pytest.mark.asyncio

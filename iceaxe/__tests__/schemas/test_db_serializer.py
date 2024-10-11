@@ -2,13 +2,13 @@ from enum import Enum, IntEnum, StrEnum
 
 import pytest
 
-from iceaxe.migrations.actions import (
+from iceaxe.schemas.actions import (
     ColumnType,
     ConstraintType,
     ForeignKeyConstraint,
 )
-from iceaxe.migrations.db_serializer import DatabaseSerializer
-from iceaxe.migrations.db_stubs import (
+from iceaxe.schemas.db_serializer import DatabaseSerializer
+from iceaxe.schemas.db_stubs import (
     DBColumn,
     DBColumnPointer,
     DBConstraint,

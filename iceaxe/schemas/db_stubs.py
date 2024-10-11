@@ -3,7 +3,7 @@ from typing import Self, Union
 
 from pydantic import BaseModel, Field, model_validator
 
-from iceaxe.migrations.actions import (
+from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,
     ConstraintType,
