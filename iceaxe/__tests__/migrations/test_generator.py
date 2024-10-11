@@ -136,5 +136,5 @@ def test_track_import():
 
     assert dict(migration_generator.import_tracker) == {
         "iceaxe.migrations.migration": {"MigrationRevisionBase"},
-        "iceaxe.migrations.db_memory_serializer": {"DatabaseMemorySerializer"},
+        "iceaxe.schemas.db_memory_serializer": {"DatabaseMemorySerializer"},
     }
