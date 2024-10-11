@@ -128,7 +128,7 @@ jobs:
       - name: Prepare distribution files
         run: |
           mkdir dist
-          cp dist-raw/ubuntu/* dist/
-          cp dist-raw/macos/* dist/
+          cp -r dist-raw/ubuntu/* dist/
+          cp -r dist-raw/macos/* dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
