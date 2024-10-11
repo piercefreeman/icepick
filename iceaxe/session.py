@@ -22,8 +22,7 @@ from iceaxe.queries import (
     is_column,
     is_function_metadata,
 )
-
-from .session_optimized import optimize_exec_casting
+from iceaxe.session_optimized import optimize_exec_casting
 
 P = ParamSpec("P")
 T = TypeVar("T")

@@ -63,8 +63,15 @@ async def test_benchmark(
     for _ in range(num_loops):
         raw_results = await fetch_users_raw(db_connection.conn, fetch_type)
     raw_time = monotonic_ns() - start_time
-    LOGGER.info(f"Raw asyncpg query time: {raw_time / 1e9:.4f} seconds")
-    CONSOLE.print(f"Raw asyncpg query time: {raw_time / 1e9:.4f} seconds")
+    raw_time_seconds = raw_time / 1e9
+    raw_time_per_query = (raw_time / num_loops) / 1e9
+
+    LOGGER.info(
+        f"Raw asyncpg query time: {raw_time_per_query:.4f} (total: {raw_time_seconds:.4f}) seconds"
+    )
+    CONSOLE.print(
+        f"Raw asyncpg query time: {raw_time_per_query:.4f} (total: {raw_time_seconds:.4f}) seconds"
+    )
 
     # Benchmark DBConnection.exec query
     start_time = monotonic_ns()
@@ -73,8 +80,15 @@ async def test_benchmark(
     for _ in range(num_loops):
         db_results = await db_connection.exec(query)
     db_time = monotonic_ns() - start_time
-    LOGGER.info(f"DBConnection.exec query time: {db_time / 1e9:.4f} seconds")
-    CONSOLE.print(f"DBConnection.exec query time: {db_time / 1e9:.4f} seconds")
+    db_time_seconds = db_time / 1e9
+    db_time_per_query = (db_time / num_loops) / 1e9
+
+    LOGGER.info(
+        f"DBConnection.exec query time: {db_time_per_query:.4f} (total: {db_time_seconds:.4f}) seconds"
+    )
+    CONSOLE.print(
+        f"DBConnection.exec query time: {db_time_per_query:.4f} (total: {db_time_seconds:.4f}) seconds"
+    )
 
     # Slower than the raw run since we need to run the performance instrumentation
     if False:
@@ -95,6 +109,6 @@ async def test_benchmark(
     # Assert that DBConnection.exec is at most X% slower than raw query
     assert (
         performance_diff <= allowed_overhead
-    ), f"DBConnection.exec is {performance_diff:.2f}% slower than raw query, which exceeds the 5% threshold"
+    ), f"DBConnection.exec is {performance_diff:.2f}% slower than raw query, which exceeds the {allowed_overhead}% threshold"
 
     LOGGER.info("Benchmark completed successfully.")
