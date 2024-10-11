@@ -3,7 +3,7 @@
 A modern, fast ORM for Python. We have the following goals:
 
 - 🏎️ **Performance**: We want to exceed or match the fastest ORMs in Python. We want our ORM
-to be as close as possible to raw-[asyncpg](https://github.com/MagicStack/asyncpg) speeds.
+to be as close as possible to raw-[asyncpg](https://github.com/MagicStack/asyncpg) speeds. See the "Benchmarks" section for more.
 - 📝 **Typehinting**: Everything should be typehinted with expected types. Declare your data as you
 expect in Python and it should bidirectionally sync to the database.
 - 🐘 **Postgres only**: Leverage native Postgres features and simplify the implementation.
@@ -214,6 +214,21 @@ pooling as part of Iceaxe, despite being supported by our underlying engine `asy
 aligned to how things should be structured in production. Python apps are always bound to one process thanks to
 the GIL. So no matter what your connection pool will always be tied to the current Python process / runtime. When you're deploying onto a server with multiple cores, the pool will be duplicated across CPUs and largely defeats the purpose of capping
 network connections in the first place.
+
+## Benchmarking
+
+We have basic benchmarking tests in the `__tests__/benchmarks` directory. To run them, you'll need to execute the pytest suite:
+
+```bash
+poetry run pytest -m integration_tests
+```
+
+Current benchmarking as of October 11 2024 is:
+
+|                   | raw asyncpg | iceaxe | external overhead                             |   |
+|-------------------|-------------|--------|-----------------------------------------------|---|
+| TableBase columns | 0.098s      | 0.093s |                                               |   |
+| TableBase full    | 0.164s      | 1.345s | 10%: dict construction | 90%: pydantic overhead |   |
 
 ## Development
 
