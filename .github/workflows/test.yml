@@ -98,7 +98,7 @@ jobs:
       - name: Build package
         run: poetry build
       - name: Upload built package as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}
           path: dist/
@@ -114,17 +114,17 @@ jobs:
       id-token: write
     steps:
       - name: Download Ubuntu build
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: dist-ubuntu-latest
           path: dist/ubuntu
       - name: Download macOS build
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: dist-macos-latest
           path: dist/macos
       - name: Download Windows build
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: dist-windows-latest
           path: dist/windows
