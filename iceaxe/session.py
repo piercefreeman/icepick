@@ -89,13 +89,7 @@ class DBConnection:
         if not objects:
             return
 
-        objects_by_class: defaultdict[Type[TableBase], list[TableBase]] = defaultdict(
-            list
-        )
-        for obj in objects:
-            objects_by_class[obj.__class__].append(obj)
-
-        for model, model_objects in objects_by_class.items():
+        for model, model_objects in self._aggregate_models_by_table(objects):
             # We let the DB handle autoincrement keys
             auto_increment_keys = [
                 field
@@ -140,17 +134,9 @@ class DBConnection:
     async def update(self, objects: Sequence[TableBase]):
         if not objects:
             return
-        async with self._ensure_transaction():
-            for obj in objects:
-                modified_attrs = {
-                    k: v
-                    for k, v in obj.get_modified_attributes().items()
-                    if not obj.model_fields[k].exclude
-                }
-                if not modified_attrs:
-                    continue
 
-                model = obj.__class__
+        async with self._ensure_transaction():
+            for model, model_objects in self._aggregate_models_by_table(objects):
                 table_name = QueryIdentifier(model.get_table_name())
                 primary_key = self._get_primary_key(model)
 
@@ -159,14 +145,52 @@ class DBConnection:
                         f"Model {model} has no primary key, required to UPDATE with ORM objects"
                     )
 
-                set_clause = ", ".join(
-                    f"{QueryIdentifier(key)} = ${i}"
-                    for i, key in enumerate(modified_attrs.keys(), start=2)
-                )
-                query = f"UPDATE {table_name} SET {set_clause} WHERE id = $1"
-                values = [getattr(obj, primary_key)] + list(modified_attrs.values())
-                await self.conn.execute(query, *values)
-                obj.clear_modified_attributes()
+                primary_key_name = QueryIdentifier(primary_key)
+
+                for obj in model_objects:
+                    modified_attrs = {
+                        k: v
+                        for k, v in obj.get_modified_attributes().items()
+                        if not obj.model_fields[k].exclude
+                    }
+                    if not modified_attrs:
+                        continue
+
+                    set_clause = ", ".join(
+                        f"{QueryIdentifier(key)} = ${i}"
+                        for i, key in enumerate(modified_attrs.keys(), start=2)
+                    )
+
+                    query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_name} = $1"
+                    values = [getattr(obj, primary_key)] + list(modified_attrs.values())
+                    await self.conn.execute(query, *values)
+                    obj.clear_modified_attributes()
+
+    async def delete(self, objects: Sequence[TableBase]):
+        async with self._ensure_transaction():
+            for model, model_objects in self._aggregate_models_by_table(objects):
+                table_name = QueryIdentifier(model.get_table_name())
+                primary_key = self._get_primary_key(model)
+
+                if not primary_key:
+                    raise ValueError(
+                        f"Model {model} has no primary key, required to UPDATE with ORM objects"
+                    )
+
+                primary_key_name = QueryIdentifier(primary_key)
+
+                for obj in model_objects:
+                    query = f"DELETE FROM {table_name} WHERE {primary_key_name} = $1"
+                    await self.conn.execute(query, getattr(obj, primary_key))
+
+    def _aggregate_models_by_table(self, objects: Sequence[TableBase]):
+        objects_by_class: defaultdict[Type[TableBase], list[TableBase]] = defaultdict(
+            list
+        )
+        for obj in objects:
+            objects_by_class[obj.__class__].append(obj)
+
+        return objects_by_class.items()
 
     def _get_primary_key(self, obj: Type[TableBase]) -> str | None:
         table_name = obj.get_table_name()
