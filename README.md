@@ -232,10 +232,11 @@ Current benchmarking as of October 11 2024 is:
 
 ## Development
 
-If you update your Cython implementation during development, you'll need to re-compile the Cython code. This can be done with:
+If you update your Cython implementation during development, you'll need to re-compile the Cython code. This can be done with
+a simple poetry install. Poetry is set up to create a dynamic `setup.py` based on our `build.py` definition.
 
 ```bash
-poetry run python setup.py build_ext --inplace
+poetry install
 ```
 
 ## TODOs
