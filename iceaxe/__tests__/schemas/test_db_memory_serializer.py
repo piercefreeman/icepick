@@ -1,6 +1,6 @@
 from datetime import date, datetime, time, timedelta
 from enum import Enum
-from typing import Sequence
+from typing import Generic, Sequence, TypeVar
 from unittest.mock import ANY
 from uuid import UUID
 
@@ -957,3 +957,95 @@ def test_order_db_objects_sorts_by_table():
 
     # Table 3 columns 1 primary constraint
     assert table_order == ["modela"] * 5 + ["modelb"] * 5
+
+
+@pytest.mark.asyncio
+async def test_generic_field_subclass():
+    class OldValues(Enum):
+        A = "A"
+
+    T = TypeVar("T")
+
+    class GenericSuperclass(Generic[T]):
+        value: T
+
+    class ModelA(TableBase, GenericSuperclass[OldValues]):
+        id: int = Field(primary_key=True)
+
+    migrator = DatabaseMemorySerializer()
+
+    db_objects = list(migrator.delegate([ModelA]))
+    next_ordering = migrator.order_db_objects(db_objects)
+
+    actor = DatabaseActions()
+    actions = await migrator.build_actions(
+        actor, [], {}, [obj for obj, _ in db_objects], next_ordering
+    )
+
+    assert actions == [
+        DryRunAction(
+            fn=actor.add_type,
+            kwargs={
+                "type_name": "oldvalues",
+                "values": [
+                    "A",
+                ],
+            },
+        ),
+        DryRunComment(
+            text="\n" "NEW TABLE: modela\n",
+            previous_line=False,
+        ),
+        DryRunAction(
+            fn=actor.add_table,
+            kwargs={
+                "table_name": "modela",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_column,
+            kwargs={
+                "column_name": "value",
+                "custom_data_type": "oldvalues",
+                "explicit_data_is_list": False,
+                "explicit_data_type": None,
+                "table_name": "modela",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_not_null,
+            kwargs={
+                "column_name": "value",
+                "table_name": "modela",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_column,
+            kwargs={
+                "column_name": "id",
+                "custom_data_type": None,
+                "explicit_data_is_list": False,
+                "explicit_data_type": ColumnType.INTEGER,
+                "table_name": "modela",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_not_null,
+            kwargs={
+                "column_name": "id",
+                "table_name": "modela",
+            },
+        ),
+        DryRunAction(
+            fn=actor.add_constraint,
+            kwargs={
+                "columns": [
+                    "id",
+                ],
+                "constraint": ConstraintType.PRIMARY_KEY,
+                "constraint_args": None,
+                "constraint_name": "modela_pkey",
+                "table_name": "modela",
+            },
+        ),
+    ]

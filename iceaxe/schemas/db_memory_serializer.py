@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from inspect import isgenerator
-from typing import Any, Generator, Sequence, Type
+from typing import Any, Generator, Sequence, Type, TypeVar
 from uuid import UUID
 
 from pydantic_core import PydanticUndefined
@@ -14,6 +14,7 @@ from iceaxe.base import (
     UniqueConstraint,
 )
 from iceaxe.generics import (
+    get_typevar_mapping,
     has_null_type,
     is_type_compatible,
     remove_null_type,
@@ -311,6 +312,11 @@ class DatabaseHandler:
             raise ValueError(f"Annotation must be provided for {table.__name__}.{key}")
 
         annotation = remove_null_type(info.annotation)
+
+        # Resolve the type of the column, if generic
+        if isinstance(annotation, TypeVar):
+            typevar_map = get_typevar_mapping(table)
+            annotation = typevar_map[annotation]
 
         # Should be prioritized in terms of MRO; StrEnums should be processed
         # before the str types

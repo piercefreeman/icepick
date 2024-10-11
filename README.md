@@ -22,7 +22,7 @@ If you're using poetry to manage your dependencies:
 poetry add iceaxe
 ```
 
-Otherwise install with pip
+Otherwise install with pip:
 
 ```bash
 pip install iceaxe
