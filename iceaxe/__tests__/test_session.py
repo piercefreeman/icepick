@@ -9,7 +9,7 @@ from iceaxe.session import (
 from iceaxe.typing import column
 
 #
-# Insert / Update with ORM objects
+# Insert / Update / Delete with ORM objects
 #
 
 
@@ -126,6 +126,24 @@ async def test_db_connection_update_no_modifications(db_connection: DBConnection
     assert len(result) == 1
     assert result[0]["name"] == "John Doe"
     assert result[0]["email"] == "john@example.com"
+
+
+@pytest.mark.asyncio
+async def test_delete_object(db_connection: DBConnection):
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+
+    result = await db_connection.conn.fetch(
+        "SELECT * FROM userdemo WHERE id = $1", user.id
+    )
+    assert len(result) == 1
+
+    await db_connection.delete([user])
+
+    result = await db_connection.conn.fetch(
+        "SELECT * FROM userdemo WHERE id = $1", user.id
+    )
+    assert len(result) == 0
 
 
 #
