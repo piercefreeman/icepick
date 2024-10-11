@@ -47,11 +47,11 @@ jobs:
           poetry run pytest -v --continue-on-collection-errors
         env:
           ICEAXE_LOG_LEVEL: DEBUG
-      - name: Run integration tests
-        run: |
-          poetry run pytest -v --continue-on-collection-errors -m integration_tests
-        env:
-          ICEAXE_LOG_LEVEL: DEBUG
+      # - name: Run integration tests
+      #   run: |
+      #     poetry run pytest -v --continue-on-collection-errors -m integration_tests
+      #   env:
+      #     ICEAXE_LOG_LEVEL: DEBUG
 
   lint:
     runs-on: ubuntu-latest

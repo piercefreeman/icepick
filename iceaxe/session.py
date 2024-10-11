@@ -2,6 +2,7 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from json import dumps as json_dumps
 from typing import (
+    Any,
     Literal,
     ParamSpec,
     Sequence,
@@ -66,6 +67,7 @@ class DBConnection:
             # We now need to cast any desired model as the models
             # instead of a blob of fields
             # Field selections should already be in the proper type
+            result_all: list[Any] = []
 
             # Pre-cache the select types, so we don't have to the runtime inspection of types
             # for each value
