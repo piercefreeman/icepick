@@ -217,7 +217,9 @@ network connections in the first place.
 
 ## Development
 
-```
+If you update your Cython implementation during development, you'll need to re-compile the Cython code. This can be done with:
+
+```bash
 poetry run python setup.py build_ext --inplace
 ```
 

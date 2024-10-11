@@ -94,7 +94,7 @@ jobs:
           poetry version $VERSION
         shell: bash
       - name: Build Cython extensions
-        run: poetry run python setup.py build_ext --inplace
+        run: poetry run python setup.py build_ext --build-lib=dist
       - name: Build package
         run: |
           poetry build
