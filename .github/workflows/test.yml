@@ -96,12 +96,14 @@ jobs:
       - name: Build Cython extensions
         run: poetry run python setup.py build_ext --inplace
       - name: Build package
-        run: poetry build
+        run: |
+          poetry build
+          mv dist dist-raw
       - name: Upload built package as artifact
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}
-          path: dist/
+          path: dist-raw/
 
   release:
     needs: [full-build]
@@ -117,16 +119,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dist-ubuntu-latest
-          path: dist/ubuntu
+          path: dist-raw/ubuntu
       - name: Download macOS build
         uses: actions/download-artifact@v4
         with:
           name: dist-macos-latest
-          path: dist/macos
+          path: dist-raw/macos
       - name: Prepare distribution files
         run: |
           mkdir dist
-          cp dist/ubuntu/* dist/
-          cp dist/macos/* dist/
+          cp dist-raw/ubuntu/* dist/
+          cp dist-raw/macos/* dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
