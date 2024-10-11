@@ -167,3 +167,5 @@ target
 pyrightconfig.json
 
 .profiles
+
+*.c

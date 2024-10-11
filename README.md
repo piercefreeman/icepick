@@ -215,6 +215,12 @@ aligned to how things should be structured in production. Python apps are always
 the GIL. So no matter what your connection pool will always be tied to the current Python process / runtime. When you're deploying onto a server with multiple cores, the pool will be duplicated across CPUs and largely defeats the purpose of capping
 network connections in the first place.
 
+## Development
+
+```
+poetry run python setup.py build_ext --inplace
+```
+
 ## TODOs
 
 - [ ] Additional documentation with usage examples.

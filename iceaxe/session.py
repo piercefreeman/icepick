@@ -1,8 +1,7 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from json import dumps as json_dumps, loads as json_loads
+from json import dumps as json_dumps
 from typing import (
-    TYPE_CHECKING,
     Any,
     Literal,
     ParamSpec,
@@ -15,16 +14,16 @@ from typing import (
 
 import asyncpg
 
-from iceaxe.base import DBFieldClassDefinition, TableBase
+from iceaxe.base import TableBase
 from iceaxe.logging import LOGGER
 from iceaxe.queries import (
-    FunctionMetadata,
     QueryBuilder,
     QueryIdentifier,
     is_base_table,
     is_column,
     is_function_metadata,
 )
+from iceaxe.session_optimized import optimize_exec_casting
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -81,48 +80,7 @@ class DBConnection:
                 for select_raw in query.select_raw
             ]
 
-            for value in values:
-                result_value = []
-                result_count = 0
-
-                for select_raw, (
-                    raw_is_table,
-                    raw_is_column,
-                    raw_is_function_metadata,
-                ) in zip(query.select_raw, select_types):
-                    if raw_is_table:
-                        if TYPE_CHECKING:
-                            select_raw = cast(Type[TableBase], select_raw)
-                        result_value.append(
-                            select_raw(
-                                **{
-                                    field: (
-                                        value[field]
-                                        if not info.is_json
-                                        else json_loads(value[field])
-                                    )
-                                    for field, info in select_raw.model_fields.items()
-                                    if not info.exclude
-                                }
-                            )
-                        )
-                        result_count += 1
-                    elif raw_is_column:
-                        if TYPE_CHECKING:
-                            select_raw = cast(DBFieldClassDefinition, select_raw)
-                        result_value.append(value[select_raw.key])
-                        result_count += 1
-                    elif raw_is_function_metadata:
-                        if TYPE_CHECKING:
-                            select_raw = cast(FunctionMetadata, select_raw)
-                        result_value.append(value[select_raw.local_name])
-                        result_count += 1
-
-                if result_count == 1:
-                    result_all.append(result_value[0])
-                else:
-                    result_all.append(tuple(result_value))
-
+            result_all = optimize_exec_casting(values, query.select_raw, select_types)
             return cast(list[T], result_all)
 
         return None
