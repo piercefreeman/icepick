@@ -83,8 +83,8 @@ class DBConnection:
                 for select_raw in query.select_raw
             ]
 
-            #result_all = optimize_exec_casting(values, query.select_raw, select_types)
-            #return cast(list[T], result_all)
+            result_all = optimize_exec_casting(values, query.select_raw, select_types)
+            return cast(list[T], result_all)
 
             for value in values:
                 result_value = []
