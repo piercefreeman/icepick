@@ -40,8 +40,6 @@ jobs:
         uses: snok/install-poetry@v1
       - name: Install dependencies
         run: poetry install
-      - name: Build Cython extensions
-        run: poetry run python setup.py build_ext --inplace
       - name: Run tests
         run: |
           poetry run pytest -v --continue-on-collection-errors
