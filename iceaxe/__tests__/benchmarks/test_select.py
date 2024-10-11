@@ -16,14 +16,14 @@ async def insert_users(conn: asyncpg.Connection, num_users: int):
 
 
 async def fetch_users_raw(conn: asyncpg.Connection) -> list[Any]:
-    return await conn.fetch("SELECT * FROM userdemo")  # type: ignore
+    return await conn.fetch("SELECT id FROM userdemo")  # type: ignore
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration_tests
 async def test_benchmark(db_connection: DBConnection, request):
     num_users = 500_000
-    num_loops = 10
+    num_loops = 100
 
     # Insert users using raw asyncpg
     await insert_users(db_connection.conn, num_users)
@@ -59,9 +59,9 @@ async def test_benchmark(db_connection: DBConnection, request):
     performance_diff = (db_time - raw_time) / raw_time * 100
     LOGGER.info(f"Performance difference: {performance_diff:.2f}%")
 
-    # Assert that DBConnection.exec is at most 5% slower than raw query
-    # assert (
-    #    performance_diff <= 5
-    # ), f"DBConnection.exec is {performance_diff:.2f}% slower than raw query, which exceeds the 5% threshold"
+    # Assert that DBConnection.exec is at most 10% slower than raw query
+    assert (
+        performance_diff <= 10
+    ), f"DBConnection.exec is {performance_diff:.2f}% slower than raw query, which exceeds the 5% threshold"
 
     LOGGER.info("Benchmark completed successfully.")

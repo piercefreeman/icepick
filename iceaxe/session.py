@@ -12,7 +12,6 @@ from typing import (
     cast,
     overload,
 )
-from iceaxe import iceaxe as iceaxe_rs  # type: ignore
 
 import asyncpg
 
@@ -26,6 +25,8 @@ from iceaxe.queries import (
     is_column,
     is_function_metadata,
 )
+
+from .session_optimized import optimize_exec_casting
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -66,28 +67,6 @@ class DBConnection:
         values = await self.conn.fetch(sql_text, *variables)
 
         if query.query_type == "SELECT":
-
-            # # Convert values to a list of dicts for Rust processing
-            # values_dicts = [dict(value) for value in values]
-
-            # # Pre-cache the select types, so we don't have to the runtime inspection of types
-            # # for each value
-            # select_types = [
-            #     (
-            #         is_base_table(select_raw),
-            #         is_column(select_raw),
-            #         is_function_metadata(select_raw),
-            #     )
-            #     for select_raw in query.select_raw
-            # ]
-
-            # # Call the Rust implementation
-            # result_all = iceaxe_rs.exec(query.select_raw, select_types, values_dicts)
-
-            # return cast(list[T], result_all)
-
-
-
             # We now need to cast any desired model as the models
             # instead of a blob of fields
             # Field selections should already be in the proper type
@@ -103,6 +82,9 @@ class DBConnection:
                 )
                 for select_raw in query.select_raw
             ]
+
+            #result_all = optimize_exec_casting(values, query.select_raw, select_types)
+            #return cast(list[T], result_all)
 
             for value in values:
                 result_value = []
