@@ -65,8 +65,6 @@ jobs:
         uses: snok/install-poetry@v1
       - name: Install dependencies
         run: poetry install
-      - name: Build Cython extensions
-        run: poetry run python setup.py build_ext --inplace
       - name: Run lint
         run: make lint
 
@@ -93,8 +91,6 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           poetry version $VERSION
         shell: bash
-      - name: Build Cython extensions
-        run: poetry run python setup.py build_ext --build-lib=dist
       - name: Build package
         run: |
           poetry build
@@ -128,7 +124,7 @@ jobs:
       - name: Prepare distribution files
         run: |
           mkdir dist
-          cp -r dist-raw/ubuntu/* dist/
-          cp -r dist-raw/macos/* dist/
+          cp dist-raw/ubuntu/* dist/
+          cp dist-raw/macos/* dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
