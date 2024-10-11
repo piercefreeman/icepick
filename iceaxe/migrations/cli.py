@@ -5,9 +5,9 @@ from iceaxe.base import DBModelMetaclass, TableBase
 from iceaxe.io import resolve_package_path
 from iceaxe.logging import CONSOLE
 from iceaxe.migrations.client_io import fetch_migrations, sort_migrations
-from iceaxe.migrations.db_serializer import DatabaseSerializer
 from iceaxe.migrations.generator import MigrationGenerator
 from iceaxe.migrations.migrator import Migrator
+from iceaxe.schemas.db_serializer import DatabaseSerializer
 from iceaxe.session import DBConnection
 
 

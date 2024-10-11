@@ -9,15 +9,16 @@ from pydantic import create_model
 from pydantic.fields import FieldInfo
 
 from iceaxe import Field, TableBase
-from iceaxe.migrations.actions import (
+from iceaxe.postgres import PostgresDateTime, PostgresTime
+from iceaxe.schemas.actions import (
     ColumnType,
     ConstraintType,
     DatabaseActions,
     DryRunAction,
     DryRunComment,
 )
-from iceaxe.migrations.db_memory_serializer import DatabaseMemorySerializer
-from iceaxe.migrations.db_stubs import (
+from iceaxe.schemas.db_memory_serializer import DatabaseMemorySerializer
+from iceaxe.schemas.db_stubs import (
     DBColumn,
     DBConstraint,
     DBObject,
@@ -26,7 +27,6 @@ from iceaxe.migrations.db_stubs import (
     DBType,
     DBTypePointer,
 )
-from iceaxe.postgres import PostgresDateTime, PostgresTime
 
 
 def compare_db_objects(

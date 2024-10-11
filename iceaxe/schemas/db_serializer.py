@@ -1,13 +1,13 @@
 import re
 
 from iceaxe.io import lru_cache_async
-from iceaxe.migrations.actions import (
+from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,
     ConstraintType,
     ForeignKeyConstraint,
 )
-from iceaxe.migrations.db_stubs import (
+from iceaxe.schemas.db_stubs import (
     DBColumn,
     DBColumnPointer,
     DBConstraint,

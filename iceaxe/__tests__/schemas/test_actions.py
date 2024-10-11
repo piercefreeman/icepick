@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import asyncpg
 import pytest
 
-from iceaxe.migrations.actions import (
+from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,
     ConstraintType,

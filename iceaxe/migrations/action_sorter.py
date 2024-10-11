@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from iceaxe.migrations.db_stubs import DBObject
+from iceaxe.schemas.db_stubs import DBObject
 
 
 class ActionTopologicalSorter:

@@ -10,11 +10,11 @@ from typing import Any, Callable, Sequence, Type
 
 from pydantic import BaseModel
 
-from iceaxe.migrations.actions import DatabaseActions, DryRunAction, DryRunComment
-from iceaxe.migrations.db_memory_serializer import DatabaseMemorySerializer
-from iceaxe.migrations.db_stubs import DBObject, DBObjectPointer
 from iceaxe.migrations.migration import MigrationRevisionBase
 from iceaxe.migrations.migrator import Migrator
+from iceaxe.schemas.actions import DatabaseActions, DryRunAction, DryRunComment
+from iceaxe.schemas.db_memory_serializer import DatabaseMemorySerializer
+from iceaxe.schemas.db_stubs import DBObject, DBObjectPointer
 
 MIGRATION_TEMPLATE = """
 {header_imports}
