@@ -200,6 +200,7 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         mcs, name: str, bases: tuple, namespace: dict[str, Any], **kwargs: Any
     ) -> type:
         mcs.is_constructing = True
+        autodetect = kwargs.pop("autodetect", True)
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         mcs.is_constructing = False
 
@@ -222,7 +223,7 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
             }
 
         # Avoid registering HandlerBase itself
-        if cls.__name__ not in {"TableBase", "BaseModel"}:
+        if cls.__name__ not in {"TableBase", "BaseModel"} and autodetect:
             DBModelMetaclass._registry.append(cls)
 
         return cls
