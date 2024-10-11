@@ -20,10 +20,19 @@ mypy = "^1.11.2"
 pyright = "^1.1.383"
 mountaineer = "^0.6.0"
 pyinstrument = "^4.7.3"
+maturin = "^1.7.4"
+
+#[build-system]
+#requires = ["poetry-core"]
+#build-backend = "poetry.core.masonry.api"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+features = ["pyo3/extension-module"]
 
 [tool.pytest.ini_options]
 markers = ["integration_tests: run longer-running integration tests"]
@@ -59,3 +68,7 @@ combine-as-imports = true
 [[tool.mypy.overrides]]
 module = "asyncpg.*"
 ignore_missing_imports = true
+
+[project]
+name = "iceaxe"
+dependencies = ["pydantic", "rich", "asyncpg"]
