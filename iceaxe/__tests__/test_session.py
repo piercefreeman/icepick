@@ -183,6 +183,32 @@ async def test_select(db_connection: DBConnection):
 
 
 @pytest.mark.asyncio
+async def test_is_null(db_connection: DBConnection):
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+
+    # Table selection
+    result_1 = await db_connection.exec(
+        QueryBuilder()
+        .select(UserDemo)
+        .where(
+            UserDemo.id == None,  # noqa: E711
+        )
+    )
+    assert result_1 == []
+
+    # Single column selection
+    result_2 = await db_connection.exec(
+        QueryBuilder()
+        .select(UserDemo)
+        .where(
+            UserDemo.id != None,  # noqa: E711
+        )
+    )
+    assert result_2 == [UserDemo(id=user.id, name="John Doe", email="john@example.com")]
+
+
+@pytest.mark.asyncio
 async def test_select_complex(db_connection: DBConnection):
     """
     Ensure that we can serialize the complex types.
