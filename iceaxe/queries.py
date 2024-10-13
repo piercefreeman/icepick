@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, overload
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, cast, overload
 
 from iceaxe.base import (
-    DBFieldClassComparison,
     DBFieldClassDefinition,
     DBModelMetaclass,
     TableBase,
 )
+from iceaxe.field import DBFieldClassComparison
 from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
 from iceaxe.queries_str import (
     QueryElementBase,
@@ -24,6 +26,7 @@ from iceaxe.typing import (
     is_base_table,
     is_column,
     is_comparison,
+    is_comparison_group,
     is_function_metadata,
     is_function_metadata_comparison,
 )
@@ -57,7 +60,9 @@ class QueryBuilder(Generic[P, QueryType]):
 
         self.return_typehint: P
 
-        self.where_conditions: list[DBFieldClassComparison] = []
+        self.where_conditions: list[
+            DBFieldClassComparison | MetadataComparisonGroup
+        ] = []
         self.order_by_clauses: list[str] = []
         self.join_clauses: list[str] = []
         self.limit_value: int | None = None
@@ -309,6 +314,68 @@ class QueryBuilder(Generic[P, QueryType]):
             query += f" OFFSET {self.offset_value}"
 
         return query, variables
+
+
+#
+# Comparison chaining
+#
+
+
+class ComparisonGroupType(StrEnum):
+    AND = "AND"
+    OR = "OR"
+
+
+@dataclass
+class MetadataComparisonGroup:
+    type: ComparisonGroupType
+    elements: list[
+        DBFieldClassComparison | FunctionMetadataComparison | MetadataComparisonGroup
+    ]
+
+
+def and_(
+    *conditions: bool,
+) -> bool:
+    field_comparisons: list[
+        DBFieldClassComparison | FunctionMetadataComparison | MetadataComparisonGroup
+    ] = []
+    for condition in conditions:
+        if (
+            not is_function_metadata_comparison(condition)
+            and not is_comparison(condition)
+            and not is_comparison_group(condition)
+        ):
+            raise ValueError(f"Invalid having condition: {condition}")
+        field_comparisons.append(condition)
+    return cast(
+        bool,
+        MetadataComparisonGroup(
+            type=ComparisonGroupType.AND, elements=field_comparisons
+        ),
+    )
+
+
+def or_(
+    *conditions: bool,
+) -> bool:
+    field_comparisons: list[
+        DBFieldClassComparison | FunctionMetadataComparison | MetadataComparisonGroup
+    ] = []
+    for condition in conditions:
+        if (
+            not is_function_metadata_comparison(condition)
+            and not is_comparison(condition)
+            and not is_comparison_group(condition)
+        ):
+            raise ValueError(f"Invalid having condition: {condition}")
+        field_comparisons.append(condition)
+    return cast(
+        bool,
+        MetadataComparisonGroup(
+            type=ComparisonGroupType.OR, elements=field_comparisons
+        ),
+    )
 
 
 #

@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 from iceaxe.base import (
-    ComparisonType,
     DBFieldClassDefinition,
 )
+from iceaxe.comparison import ComparisonBase, ComparisonType
 from iceaxe.queries_str import QueryLiteral, field_to_literal
 from iceaxe.typing import is_column, is_function_metadata
 
@@ -21,37 +21,10 @@ class FunctionMetadataComparison:
 
 
 @dataclass
-class FunctionMetadata:
+class FunctionMetadata(ComparisonBase):
     literal: QueryLiteral
     original_field: DBFieldClassDefinition
     local_name: str | None = None
-
-    def __eq__(self, other):  # type: ignore
-        return self._compare(ComparisonType.EQ, other)
-
-    def __ne__(self, other):  # type: ignore
-        return self._compare(ComparisonType.NE, other)
-
-    def __lt__(self, other):
-        return self._compare(ComparisonType.LT, other)
-
-    def __le__(self, other):
-        return self._compare(ComparisonType.LE, other)
-
-    def __gt__(self, other):
-        return self._compare(ComparisonType.GT, other)
-
-    def __ge__(self, other):
-        return self._compare(ComparisonType.GE, other)
-
-    def in_(self, other) -> bool:
-        return self._compare(ComparisonType.IN, other)  # type: ignore
-
-    def not_in(self, other) -> bool:
-        return self._compare(ComparisonType.NOT_IN, other)  # type: ignore
-
-    def like(self, other) -> bool:
-        return self._compare(ComparisonType.LIKE, other)  # type: ignore
 
     def _compare(self, comparison: ComparisonType, other: Any):
         return FunctionMetadataComparison(left=self, comparison=comparison, right=other)

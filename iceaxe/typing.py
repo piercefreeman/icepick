@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         TableBase,
     )
     from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
+    from iceaxe.queries import MetadataComparisonGroup
     from iceaxe.queries_str import QueryLiteral
 
 
@@ -62,6 +63,12 @@ def is_function_metadata_comparison(obj: Any) -> TypeGuard[FunctionMetadataCompa
     from iceaxe.functions import FunctionMetadataComparison
 
     return isinstance(obj, FunctionMetadataComparison)
+
+
+def is_comparison_group(obj: Any) -> TypeGuard[MetadataComparisonGroup]:
+    from iceaxe.queries import MetadataComparisonGroup
+
+    return isinstance(obj, MetadataComparisonGroup)
 
 
 def column(obj: Any):
