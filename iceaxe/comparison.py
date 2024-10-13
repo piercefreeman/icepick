@@ -19,6 +19,8 @@ class ComparisonType(StrEnum):
     IN = "IN"
     NOT_IN = "NOT IN"
     LIKE = "LIKE"
+    IS = "IS"
+    IS_NOT = "IS NOT"
 
 
 class ComparisonGroupType(StrEnum):
@@ -80,9 +82,13 @@ class FieldComparisonGroup:
 
 class ComparisonBase(ABC):
     def __eq__(self, other):  # type: ignore
+        if other is None:
+            return self._compare(ComparisonType.IS, None)
         return self._compare(ComparisonType.EQ, other)
 
     def __ne__(self, other):  # type: ignore
+        if other is None:
+            return self._compare(ComparisonType.IS_NOT, None)
         return self._compare(ComparisonType.NE, other)
 
     def __lt__(self, other):
