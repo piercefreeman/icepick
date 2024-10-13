@@ -303,6 +303,7 @@ class DatabaseHandler:
                 column_type=column_type,
                 column_is_list=db_annotation.is_list,
                 nullable=is_nullable,
+                autoincrement=info.autoincrement,
             ),
             dependencies=column_dependencies,
         )

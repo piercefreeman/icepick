@@ -1049,3 +1049,87 @@ async def test_generic_field_subclass():
             },
         ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_serial_only_on_create():
+    """
+    SERIAL types should only be used during table creation. Test a synthetic
+    migration where we both create an initial SERIAL and migrate from a "db" table
+    schema (that won't have autoincrement set) to a "new" table schema (that will).
+    Nothing should happen to the id column in this case.
+
+    """
+
+    class ModelA(TableBase):
+        id: int | None = Field(default=None, primary_key=True)
+        value: int
+
+    class ModelADB(TableBase):
+        table_name = "modela"
+        id: int | None = Field(primary_key=True)
+        value_b: int
+
+    # Because "default" is omitted, this should be detected as a regular INTEGER
+    # column and not a SERIAL column.
+    id_definition = [field for field in ModelADB.model_fields.values()]
+    assert id_definition[0].autoincrement is False
+
+    migrator = DatabaseMemorySerializer()
+
+    memory_objects = list(migrator.delegate([ModelA]))
+    memory_ordering = migrator.order_db_objects(memory_objects)
+
+    db_objects = list(migrator.delegate([ModelADB]))
+    db_ordering = migrator.order_db_objects(db_objects)
+
+    # At the DBColumn level, these should both be integer objects
+    id_columns = [
+        column
+        for column, _ in memory_objects + db_objects
+        if isinstance(column, DBColumn) and column.column_name == "id"
+    ]
+    assert [column.column_type for column in id_columns] == [
+        ColumnType.INTEGER,
+        ColumnType.INTEGER,
+    ]
+
+    # First, test the creation logic. We expect to see a SERIAL column here.
+    actor = DatabaseActions()
+    actions = await migrator.build_actions(
+        actor, [], {}, [obj for obj, _ in memory_objects], memory_ordering
+    )
+
+    assert [
+        action
+        for action in actions
+        if isinstance(action, DryRunAction) and action.kwargs.get("column_name") == "id"
+    ] == [
+        DryRunAction(
+            fn=actor.add_column,
+            kwargs={
+                "column_name": "id",
+                "custom_data_type": None,
+                "explicit_data_is_list": False,
+                "explicit_data_type": ColumnType.SERIAL,
+                "table_name": "modela",
+            },
+        )
+    ]
+
+    # Now, test the migration logic. We expect to see no changes to the id
+    # column here because integers should logically equal serials for the purposes
+    # of migration differences.
+    actor = DatabaseActions()
+    actions = await migrator.build_actions(
+        actor,
+        [obj for obj, _ in db_objects],
+        db_ordering,
+        [obj for obj, _ in memory_objects],
+        memory_ordering,
+    )
+    assert [
+        action
+        for action in actions
+        if isinstance(action, DryRunAction) and action.kwargs.get("column_name") == "id"
+    ] == []
