@@ -412,3 +412,23 @@ async def test_select_with_distinct(db_connection: DBConnection):
     )
     result = await db_connection.exec(query)
     assert result == ["Jane", "John"]
+
+
+@pytest.mark.asyncio
+async def test_refresh(db_connection: DBConnection):
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+
+    # Update the user with a manual SQL query to simulate another process
+    # doing an update
+    await db_connection.conn.execute(
+        "UPDATE userdemo SET name = 'Jane Doe' WHERE id = $1", user.id
+    )
+
+    # The user object in memory should still have the old name
+    assert user.name == "John Doe"
+
+    # Refreshing the user object from the database should pull the
+    # new attributes
+    await db_connection.refresh([user])
+    assert user.name == "Jane Doe"
