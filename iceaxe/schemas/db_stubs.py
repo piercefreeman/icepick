@@ -125,13 +125,22 @@ class DBColumn(DBColumnBase, DBObject):
 
     nullable: bool
 
+    autoincrement: bool = False
+
     async def create(self, actor: DatabaseActions):
+        # The only time SERIAL types are allowed is during creation for autoincrementing
+        # integer columns
+        explicit_data_type: ColumnType | None = None
+        if isinstance(self.column_type, ColumnType):
+            if self.column_type == ColumnType.INTEGER and self.autoincrement:
+                explicit_data_type = ColumnType.SERIAL
+            else:
+                explicit_data_type = self.column_type
+
         await actor.add_column(
             self.table_name,
             self.column_name,
-            explicit_data_type=(
-                self.column_type if isinstance(self.column_type, ColumnType) else None
-            ),
+            explicit_data_type=explicit_data_type,
             explicit_data_is_list=self.column_is_list,
             custom_data_type=(
                 self.column_type.representation()

@@ -1,8 +1,13 @@
+from enum import StrEnum
+
 import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, ComplexDemo, UserDemo
+from iceaxe.base import TableBase
+from iceaxe.field import Field
 from iceaxe.functions import func
 from iceaxe.queries import QueryBuilder
+from iceaxe.schemas.cli import create_all
 from iceaxe.session import (
     DBConnection,
 )
@@ -432,3 +437,38 @@ async def test_refresh(db_connection: DBConnection):
     # new attributes
     await db_connection.refresh([user])
     assert user.name == "Jane Doe"
+
+
+@pytest.mark.asyncio
+async def test_db_connection_insert_update_enum(db_connection: DBConnection):
+    """
+    Test that casting enum types with is working for both insert and updates.
+
+    """
+
+    class EnumValue(StrEnum):
+        A = "a"
+        B = "b"
+
+    class EnumDemo(TableBase):
+        id: int | None = Field(default=None, primary_key=True)
+        value: EnumValue
+
+    # Clear out previous tables
+    await db_connection.conn.execute("DROP TABLE IF EXISTS enumdemo")
+    await db_connection.conn.execute("DROP TYPE IF EXISTS enumvalue")
+    await create_all(db_connection, [EnumDemo])
+
+    userdemo = EnumDemo(value=EnumValue.A)
+    await db_connection.insert([userdemo])
+
+    result = await db_connection.conn.fetch("SELECT * FROM enumdemo")
+    assert len(result) == 1
+    assert result[0]["value"] == "a"
+
+    userdemo.value = EnumValue.B
+    await db_connection.update([userdemo])
+
+    result = await db_connection.conn.fetch("SELECT * FROM enumdemo")
+    assert len(result) == 1
+    assert result[0]["value"] == "b"

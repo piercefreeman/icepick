@@ -303,6 +303,7 @@ class DatabaseHandler:
                 column_type=column_type,
                 column_is_list=db_annotation.is_list,
                 nullable=is_nullable,
+                autoincrement=info.autoincrement,
             ),
             dependencies=column_dependencies,
         )
@@ -321,10 +322,18 @@ class DatabaseHandler:
         # Should be prioritized in terms of MRO; StrEnums should be processed
         # before the str types
         if is_type_compatible(annotation, ALL_ENUM_TYPES):
+            # We only support string values for enums because postgres enums are defined
+            # as name-based types
+            for value in annotation:  # type: ignore
+                if not isinstance(value.value, str):
+                    raise ValueError(
+                        f"Only string values are supported for enums, received: {value.value} (enum: {annotation})"
+                    )
+
             return TypeDeclarationResponse(
                 custom_type=DBType(
                     name=annotation.__name__.lower(),  # type: ignore
-                    values=frozenset([value.name for value in annotation]),  # type: ignore
+                    values=frozenset([value.value for value in annotation]),  # type: ignore
                     reference_columns=frozenset({(table.get_table_name(), key)}),
                 ),
             )
