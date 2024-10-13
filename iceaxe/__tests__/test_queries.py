@@ -4,7 +4,7 @@ import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, UserDemo
 from iceaxe.functions import func
-from iceaxe.queries import QueryBuilder, select
+from iceaxe.queries import QueryBuilder, and_, or_, select
 
 
 def test_select():
@@ -173,6 +173,65 @@ def test_invalid_join_condition():
 def test_invalid_group_by():
     with pytest.raises(ValueError):
         QueryBuilder().select(UserDemo.id).group_by("invalid field")
+
+
+#
+# Comparison groups
+#
+
+
+def test_and_group():
+    new_query = (
+        QueryBuilder()
+        .select(UserDemo.id)
+        .where(
+            and_(
+                UserDemo.name == UserDemo.email,
+                UserDemo.id > 0,
+            )
+        )
+    )
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" FROM "userdemo" WHERE ("userdemo"."name" = "userdemo"."email" AND "userdemo"."id" > $1)',
+        [0],
+    )
+
+
+def test_or_group():
+    new_query = (
+        QueryBuilder()
+        .select(UserDemo.id)
+        .where(
+            or_(
+                UserDemo.name == UserDemo.email,
+                UserDemo.id > 0,
+            )
+        )
+    )
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" FROM "userdemo" WHERE ("userdemo"."name" = "userdemo"."email" OR "userdemo"."id" > $1)',
+        [0],
+    )
+
+
+def test_nested_and_or_group():
+    new_query = (
+        QueryBuilder()
+        .select(UserDemo.id)
+        .where(
+            and_(
+                or_(
+                    UserDemo.name == UserDemo.email,
+                    UserDemo.id > 0,
+                ),
+                UserDemo.id < 10,
+            )
+        )
+    )
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" FROM "userdemo" WHERE (("userdemo"."name" = "userdemo"."email" OR "userdemo"."id" > $1) AND "userdemo"."id" < $2)',
+        [0, 10],
+    )
 
 
 #

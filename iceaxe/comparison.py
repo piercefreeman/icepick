@@ -62,15 +62,15 @@ class FieldComparisonGroup:
 
         for i, element in enumerate(self.elements):
             if i > 0:
-                queries += f"{self.type.value} "
+                queries += f" {self.type.value} "
 
             if is_comparison(element):
                 query, variables = element.to_query(start=start + len(all_variables))
-                queries += f"{query} "
+                queries += f"{query}"
                 all_variables += variables
             elif is_comparison_group(element):
                 query, variables = element.to_query(start=start + len(all_variables))
-                queries += f"({query}) "
+                queries += f"({query})"
                 all_variables += variables
             else:
                 raise ValueError(f"Unexpected element type: {type(element)}")

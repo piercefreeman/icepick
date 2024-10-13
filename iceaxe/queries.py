@@ -161,9 +161,9 @@ class QueryBuilder(Generic[P, QueryType]):
         # During typechecking these seem like bool values, since they're the result
         # of the comparison set. But at runtime they will be the whole object that
         # gives the comparison. We can assert that's true here.
-        validated_comparisons: list[FieldComparison] = []
+        validated_comparisons: list[FieldComparison | FieldComparisonGroup] = []
         for condition in conditions:
-            if not is_comparison(condition):
+            if not is_comparison(condition) and not is_comparison_group(condition):
                 raise ValueError(f"Invalid where condition: {condition}")
             validated_comparisons.append(condition)
 
@@ -257,14 +257,12 @@ class QueryBuilder(Generic[P, QueryType]):
             query += " " + " ".join(self.join_clauses)
 
         if self.where_conditions:
-            query += " WHERE"
-            for i, condition in enumerate(self.where_conditions):
-                if i > 0:
-                    query += " AND"
-
-                element_query, element_variables = condition.to_query(len(variables))
-                query += f" {element_query}"
-                variables += element_variables
+            comparison_group = cast(FieldComparisonGroup, and_(*self.where_conditions))  # type: ignore
+            comparison_literal, comparison_variables = comparison_group.to_query(
+                len(variables)
+            )
+            query += f" WHERE {comparison_literal}"
+            variables += comparison_variables
 
         if self.group_by_fields:
             query += " GROUP BY "
