@@ -1,60 +1,34 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 from iceaxe.base import (
-    ComparisonType,
     DBFieldClassDefinition,
 )
-from iceaxe.queries_str import QueryLiteral, field_to_literal
+from iceaxe.comparison import ComparisonBase
+from iceaxe.queries_str import QueryLiteral
 from iceaxe.typing import is_column, is_function_metadata
 
 T = TypeVar("T")
 
 
-@dataclass
-class FunctionMetadataComparison:
-    left: FunctionMetadata
-    comparison: ComparisonType
-    right: FunctionMetadata | Any
-
-
-@dataclass
-class FunctionMetadata:
+class FunctionMetadata(ComparisonBase):
     literal: QueryLiteral
     original_field: DBFieldClassDefinition
     local_name: str | None = None
 
-    def __eq__(self, other):  # type: ignore
-        return self._compare(ComparisonType.EQ, other)
+    def __init__(
+        self,
+        literal: QueryLiteral,
+        original_field: DBFieldClassDefinition,
+        local_name: str | None = None,
+    ):
+        self.literal = literal
+        self.original_field = original_field
+        self.local_name = local_name
 
-    def __ne__(self, other):  # type: ignore
-        return self._compare(ComparisonType.NE, other)
-
-    def __lt__(self, other):
-        return self._compare(ComparisonType.LT, other)
-
-    def __le__(self, other):
-        return self._compare(ComparisonType.LE, other)
-
-    def __gt__(self, other):
-        return self._compare(ComparisonType.GT, other)
-
-    def __ge__(self, other):
-        return self._compare(ComparisonType.GE, other)
-
-    def in_(self, other) -> bool:
-        return self._compare(ComparisonType.IN, other)  # type: ignore
-
-    def not_in(self, other) -> bool:
-        return self._compare(ComparisonType.NOT_IN, other)  # type: ignore
-
-    def like(self, other) -> bool:
-        return self._compare(ComparisonType.LIKE, other)  # type: ignore
-
-    def _compare(self, comparison: ComparisonType, other: Any):
-        return FunctionMetadataComparison(left=self, comparison=comparison, right=other)
+    def to_query(self):
+        return self.literal, []
 
 
 class FunctionBuilder:
@@ -92,9 +66,7 @@ class FunctionBuilder:
         if is_function_metadata(field):
             return field
         elif is_column(field):
-            return FunctionMetadata(
-                literal=field_to_literal(field), original_field=field
-            )
+            return FunctionMetadata(literal=field.to_query()[0], original_field=field)
         else:
             raise ValueError(
                 f"Unable to cast this type to a column: {field} ({type(field)})"

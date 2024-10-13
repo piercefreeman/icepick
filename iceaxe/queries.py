@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, overload
+from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, cast, overload
 
 from iceaxe.base import (
-    DBFieldClassComparison,
     DBFieldClassDefinition,
     DBModelMetaclass,
     TableBase,
 )
-from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
+from iceaxe.comparison import ComparisonGroupType, FieldComparison, FieldComparisonGroup
+from iceaxe.functions import FunctionMetadata
 from iceaxe.queries_str import (
     QueryElementBase,
     QueryIdentifier,
     QueryLiteral,
-    field_to_literal,
 )
 from iceaxe.typing import (
     ALL_ENUM_TYPES,
@@ -24,8 +23,8 @@ from iceaxe.typing import (
     is_base_table,
     is_column,
     is_comparison,
+    is_comparison_group,
     is_function_metadata,
-    is_function_metadata_comparison,
 )
 
 P = TypeVar("P")
@@ -57,13 +56,13 @@ class QueryBuilder(Generic[P, QueryType]):
 
         self.return_typehint: P
 
-        self.where_conditions: list[DBFieldClassComparison] = []
+        self.where_conditions: list[FieldComparison | FieldComparisonGroup] = []
         self.order_by_clauses: list[str] = []
         self.join_clauses: list[str] = []
         self.limit_value: int | None = None
         self.offset_value: int | None = None
         self.group_by_fields: list[DBFieldClassDefinition] = []
-        self.having_conditions: list[FunctionMetadataComparison] = []
+        self.having_conditions: list[FieldComparison] = []
 
         # Query specific params
         self.update_values: dict[str, Any] = {}
@@ -135,7 +134,8 @@ class QueryBuilder(Generic[P, QueryType]):
 
         for field in fields:
             if is_column(field):
-                self.select_fields.append(field_to_literal(field))
+                literal, _ = field.to_query()
+                self.select_fields.append(literal)
                 self.select_raw.append(field)
             elif is_base_table(field):
                 table_token = QueryIdentifier(field.get_table_name())
@@ -161,9 +161,9 @@ class QueryBuilder(Generic[P, QueryType]):
         # During typechecking these seem like bool values, since they're the result
         # of the comparison set. But at runtime they will be the whole object that
         # gives the comparison. We can assert that's true here.
-        validated_comparisons: list[DBFieldClassComparison] = []
+        validated_comparisons: list[FieldComparison | FieldComparisonGroup] = []
         for condition in conditions:
-            if not is_comparison(condition):
+            if not is_comparison(condition) and not is_comparison_group(condition):
                 raise ValueError(f"Invalid where condition: {condition}")
             validated_comparisons.append(condition)
 
@@ -174,7 +174,7 @@ class QueryBuilder(Generic[P, QueryType]):
         if not is_column(field):
             raise ValueError(f"Invalid order by field: {field}")
 
-        field_token = field_to_literal(field)
+        field_token, _ = field.to_query()
         self.order_by_clauses.append(f"{field_token} {direction}")
         return self
 
@@ -185,9 +185,9 @@ class QueryBuilder(Generic[P, QueryType]):
             )
 
         table_name = QueryLiteral(table.get_table_name())
-        on_left = field_to_literal(on.left)
+        on_left, _ = on.left.to_query()
         comparison = QueryLiteral(on.comparison.value)
-        on_right = field_to_literal(on.right)
+        on_right, _ = on.right.to_query()
 
         join_sql = f"{join_type} JOIN {table_name} ON {on_left} {comparison} {on_right}"
         self.join_clauses.append(join_sql)
@@ -213,10 +213,10 @@ class QueryBuilder(Generic[P, QueryType]):
         return self
 
     def having(self, *conditions: bool):
-        valid_conditions: list[FunctionMetadataComparison] = []
+        valid_conditions: list[FieldComparison] = []
 
         for condition in conditions:
-            if not is_function_metadata_comparison(condition):
+            if not is_comparison(condition):
                 raise ValueError(f"Invalid having condition: {condition}")
             valid_conditions.append(condition)
 
@@ -257,22 +257,12 @@ class QueryBuilder(Generic[P, QueryType]):
             query += " " + " ".join(self.join_clauses)
 
         if self.where_conditions:
-            query += " WHERE "
-            for i, condition in enumerate(self.where_conditions):
-                if i > 0:
-                    query += " AND "
-
-                field = field_to_literal(condition.left)
-                value: QueryElementBase
-                if is_column(condition.right):
-                    # Support comparison to other fields (both identifiers)
-                    value = field_to_literal(condition.right)
-                else:
-                    # Support comparison to static values
-                    variables.append(condition.right)
-                    value = QueryLiteral("$" + str(len(variables)))
-
-                query += f"{field} {condition.comparison.value} {value}"
+            comparison_group = cast(FieldComparisonGroup, and_(*self.where_conditions))  # type: ignore
+            comparison_literal, comparison_variables = comparison_group.to_query(
+                len(variables)
+            )
+            query += f" WHERE {comparison_literal}"
+            variables += comparison_variables
 
         if self.group_by_fields:
             query += " GROUP BY "
@@ -309,6 +299,39 @@ class QueryBuilder(Generic[P, QueryType]):
             query += f" OFFSET {self.offset_value}"
 
         return query, variables
+
+
+#
+# Comparison chaining
+#
+
+
+def and_(
+    *conditions: bool,
+) -> bool:
+    field_comparisons: list[FieldComparison | FieldComparisonGroup] = []
+    for condition in conditions:
+        if not is_comparison(condition) and not is_comparison_group(condition):
+            raise ValueError(f"Invalid having condition: {condition}")
+        field_comparisons.append(condition)
+    return cast(
+        bool,
+        FieldComparisonGroup(type=ComparisonGroupType.AND, elements=field_comparisons),
+    )
+
+
+def or_(
+    *conditions: bool,
+) -> bool:
+    field_comparisons: list[FieldComparison | FieldComparisonGroup] = []
+    for condition in conditions:
+        if not is_comparison(condition) and not is_comparison_group(condition):
+            raise ValueError(f"Invalid having condition: {condition}")
+        field_comparisons.append(condition)
+    return cast(
+        bool,
+        FieldComparisonGroup(type=ComparisonGroupType.OR, elements=field_comparisons),
+    )
 
 
 #
