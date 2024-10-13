@@ -34,27 +34,38 @@ class FieldComparison(Generic[T]):
     comparison: ComparisonType
     right: T | Any
 
-    def to_query(self, start: int = 0):
+    def to_query(self, start: int = 1):
         variables = []
 
         field, left_vars = self.left.to_query()
         variables += left_vars
 
         value: QueryElementBase
+        comparison = self.comparison
         if is_column(self.right):
             # Support comparison to other fields (both identifiers)
             value, right_vars = self.right.to_query()
             variables += right_vars
         else:
+            variable_offset = str(len(variables) + start)
+
             if self.right is None:
                 # "None" values are not supported as query variables
                 value = QueryLiteral("NULL")
+            elif self.comparison in (ComparisonType.IN, ComparisonType.NOT_IN):
+                variables.append(self.right)
+                comparison_map = {
+                    ComparisonType.IN: ComparisonType.EQ,
+                    ComparisonType.NOT_IN: ComparisonType.NE,
+                }
+                comparison = comparison_map[self.comparison]
+                value = QueryLiteral(f"ANY(${variable_offset})")
             else:
                 # Support comparison to static values
                 variables.append(self.right)
-                value = QueryLiteral("$" + str(len(variables) + start))
+                value = QueryLiteral(f"${variable_offset}")
 
-        return QueryLiteral(f"{field} {self.comparison.value} {value}"), variables
+        return QueryLiteral(f"{field} {comparison.value} {value}"), variables
 
 
 @dataclass
@@ -62,7 +73,7 @@ class FieldComparisonGroup:
     type: ComparisonGroupType
     elements: list["FieldComparison | FieldComparisonGroup"]
 
-    def to_query(self, start: int = 0):
+    def to_query(self, start: int = 1):
         queries = ""
         all_variables = []
 
