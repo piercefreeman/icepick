@@ -17,6 +17,8 @@ def test_comparison_type_enum():
     assert ComparisonType.IN == "IN"
     assert ComparisonType.NOT_IN == "NOT IN"
     assert ComparisonType.LIKE == "LIKE"
+    assert ComparisonType.IS == "IS"
+    assert ComparisonType.IS_NOT == "IS NOT"
 
 
 @pytest.fixture
@@ -34,12 +36,28 @@ def test_eq(db_field: DBFieldClassDefinition):
     assert result.right == 5
 
 
+def test_eq_none(db_field: DBFieldClassDefinition):
+    result = db_field == None  # noqa: E711
+    assert isinstance(result, FieldComparison)
+    assert result.left == db_field
+    assert result.comparison == ComparisonType.IS
+    assert result.right is None
+
+
 def test_ne(db_field: DBFieldClassDefinition):
     result = db_field != 5
     assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.NE
     assert result.right == 5
+
+
+def test_ne_none(db_field: DBFieldClassDefinition):
+    result = db_field != None  # noqa: E711
+    assert isinstance(result, FieldComparison)
+    assert result.left == db_field
+    assert result.comparison == ComparisonType.IS_NOT
+    assert result.right is None
 
 
 def test_lt(db_field: DBFieldClassDefinition):
