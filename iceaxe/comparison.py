@@ -46,9 +46,13 @@ class FieldComparison(Generic[T]):
             value, right_vars = self.right.to_query()
             variables += right_vars
         else:
-            # Support comparison to static values
-            variables.append(self.right)
-            value = QueryLiteral("$" + str(len(variables) + start))
+            if self.right is None:
+                # "None" values are not supported as query variables
+                value = QueryLiteral("NULL")
+            else:
+                # Support comparison to static values
+                variables.append(self.right)
+                value = QueryLiteral("$" + str(len(variables) + start))
 
         return QueryLiteral(f"{field} {self.comparison.value} {value}"), variables
 
