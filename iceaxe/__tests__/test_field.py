@@ -3,8 +3,8 @@ from typing import Any
 import pytest
 
 from iceaxe.base import TableBase
-from iceaxe.comparison import ComparisonType
-from iceaxe.field import DBFieldClassComparison, DBFieldClassDefinition, FieldInfo
+from iceaxe.comparison import ComparisonType, FieldComparison
+from iceaxe.field import DBFieldClassDefinition, FieldInfo
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def db_field():
 
 def test_eq(db_field: DBFieldClassDefinition):
     result = db_field == 5
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.EQ
     assert result.right == 5
@@ -24,7 +24,7 @@ def test_eq(db_field: DBFieldClassDefinition):
 
 def test_ne(db_field: DBFieldClassDefinition):
     result = db_field != 5
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.NE
     assert result.right == 5
@@ -32,7 +32,7 @@ def test_ne(db_field: DBFieldClassDefinition):
 
 def test_lt(db_field: DBFieldClassDefinition):
     result = db_field < 5
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.LT
     assert result.right == 5
@@ -40,7 +40,7 @@ def test_lt(db_field: DBFieldClassDefinition):
 
 def test_le(db_field):
     result = db_field <= 5
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.LE
     assert result.right == 5
@@ -48,7 +48,7 @@ def test_le(db_field):
 
 def test_gt(db_field: DBFieldClassDefinition):
     result = db_field > 5
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.GT
     assert result.right == 5
@@ -56,7 +56,7 @@ def test_gt(db_field: DBFieldClassDefinition):
 
 def test_ge(db_field: DBFieldClassDefinition):
     result = db_field >= 5
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.GE
     assert result.right == 5
@@ -64,7 +64,7 @@ def test_ge(db_field: DBFieldClassDefinition):
 
 def test_in(db_field: DBFieldClassDefinition):
     result = db_field.in_([1, 2, 3])
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.IN
     assert result.right == [1, 2, 3]
@@ -72,7 +72,7 @@ def test_in(db_field: DBFieldClassDefinition):
 
 def test_not_in(db_field: DBFieldClassDefinition):
     result = db_field.not_in([1, 2, 3])
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.NOT_IN
     assert result.right == [1, 2, 3]
@@ -80,7 +80,7 @@ def test_not_in(db_field: DBFieldClassDefinition):
 
 def test_contains(db_field: DBFieldClassDefinition):
     result = db_field.like("test")
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.LIKE
     assert result.right == "test"
@@ -88,7 +88,7 @@ def test_contains(db_field: DBFieldClassDefinition):
 
 def test_compare(db_field: DBFieldClassDefinition):
     result = db_field._compare(ComparisonType.EQ, 10)
-    assert isinstance(result, DBFieldClassComparison)
+    assert isinstance(result, FieldComparison)
     assert result.left == db_field
     assert result.comparison == ComparisonType.EQ
     assert result.right == 10
@@ -111,7 +111,6 @@ def test_compare(db_field: DBFieldClassDefinition):
         ),
     ],
 )
-# Test case for _compare method
 def test_comparison_with_different_types(db_field: DBFieldClassDefinition, value: Any):
     for method in [
         db_field.__eq__,
@@ -125,19 +124,10 @@ def test_comparison_with_different_types(db_field: DBFieldClassDefinition, value
         db_field.like,
     ]:
         result = method(value)
-        assert isinstance(result, DBFieldClassComparison)
+        assert isinstance(result, FieldComparison)
         assert result.left == db_field
         assert isinstance(result.comparison, ComparisonType)
         assert result.right == value
-
-
-def test_db_field_class_comparison_instantiation(db_field: DBFieldClassDefinition):
-    comparison = DBFieldClassComparison(
-        left=db_field, comparison=ComparisonType.EQ, right=5
-    )
-    assert comparison.left == db_field
-    assert comparison.comparison == ComparisonType.EQ
-    assert comparison.right == 5
 
 
 def test_db_field_class_definition_instantiation():

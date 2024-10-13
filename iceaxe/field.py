@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -14,8 +13,9 @@ from pydantic import Field as PydanticField
 from pydantic.fields import FieldInfo, _FieldInfoInputs
 from pydantic_core import PydanticUndefined
 
-from iceaxe.comparison import ComparisonBase, ComparisonType
+from iceaxe.comparison import ComparisonBase
 from iceaxe.postgres import PostgresFieldBase
+from iceaxe.queries_str import QueryIdentifier, QueryLiteral
 
 if TYPE_CHECKING:
     from iceaxe.base import TableBase
@@ -133,21 +133,25 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
     return func
 
 
-@dataclass
 class DBFieldClassDefinition(ComparisonBase):
     root_model: Type["TableBase"]
     key: str
     field_definition: FieldInfo
 
-    def _compare(self, comparison: ComparisonType, other: Any):
-        return DBFieldClassComparison(left=self, comparison=comparison, right=other)
+    def __init__(
+        self,
+        root_model: Type["TableBase"],
+        key: str,
+        field_definition: FieldInfo,
+    ):
+        self.root_model = root_model
+        self.key = key
+        self.field_definition = field_definition
 
-
-@dataclass
-class DBFieldClassComparison:
-    left: DBFieldClassDefinition
-    comparison: ComparisonType
-    right: DBFieldClassDefinition | Any
+    def to_query(self):
+        table = QueryIdentifier(self.root_model.get_table_name())
+        column = QueryIdentifier(self.key)
+        return QueryLiteral(f"{table}.{column}"), []
 
 
 Field = __get_db_field()

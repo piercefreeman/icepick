@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from iceaxe.base import (
-    DBFieldClassDefinition,
-)
-
 
 class QueryElementBase(ABC):
     def __init__(self, value: str):
@@ -30,9 +26,3 @@ class QueryIdentifier(QueryElementBase):
 class QueryLiteral(QueryElementBase):
     def process_value(self, value: str):
         return value
-
-
-def field_to_literal(field: DBFieldClassDefinition) -> QueryLiteral:
-    table = QueryIdentifier(field.root_model.get_table_name())
-    column = QueryIdentifier(field.key)
-    return QueryLiteral(f"{table}.{column}")

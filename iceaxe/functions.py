@@ -1,33 +1,34 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 from iceaxe.base import (
     DBFieldClassDefinition,
 )
-from iceaxe.comparison import ComparisonBase, ComparisonType
-from iceaxe.queries_str import QueryLiteral, field_to_literal
+from iceaxe.comparison import ComparisonBase
+from iceaxe.queries_str import QueryLiteral
 from iceaxe.typing import is_column, is_function_metadata
 
 T = TypeVar("T")
 
 
-@dataclass
-class FunctionMetadataComparison:
-    left: FunctionMetadata
-    comparison: ComparisonType
-    right: FunctionMetadata | Any
-
-
-@dataclass
 class FunctionMetadata(ComparisonBase):
     literal: QueryLiteral
     original_field: DBFieldClassDefinition
     local_name: str | None = None
 
-    def _compare(self, comparison: ComparisonType, other: Any):
-        return FunctionMetadataComparison(left=self, comparison=comparison, right=other)
+    def __init__(
+        self,
+        literal: QueryLiteral,
+        original_field: DBFieldClassDefinition,
+        local_name: str | None = None,
+    ):
+        self.literal = literal
+        self.original_field = original_field
+        self.local_name = local_name
+
+    def to_query(self):
+        return self.literal, []
 
 
 class FunctionBuilder:
@@ -65,9 +66,7 @@ class FunctionBuilder:
         if is_function_metadata(field):
             return field
         elif is_column(field):
-            return FunctionMetadata(
-                literal=field_to_literal(field), original_field=field
-            )
+            return FunctionMetadata(literal=field.to_query()[0], original_field=field)
         else:
             raise ValueError(
                 f"Unable to cast this type to a column: {field} ({type(field)})"

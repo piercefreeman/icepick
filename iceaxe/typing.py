@@ -13,12 +13,11 @@ from uuid import UUID
 
 if TYPE_CHECKING:
     from iceaxe.base import (
-        DBFieldClassComparison,
         DBFieldClassDefinition,
         TableBase,
     )
-    from iceaxe.functions import FunctionMetadata, FunctionMetadataComparison
-    from iceaxe.queries import MetadataComparisonGroup
+    from iceaxe.comparison import FieldComparison, FieldComparisonGroup
+    from iceaxe.functions import FunctionMetadata
     from iceaxe.queries_str import QueryLiteral
 
 
@@ -41,10 +40,16 @@ def is_column(obj: Any) -> TypeGuard[DBFieldClassDefinition]:
     return isinstance(obj, DBFieldClassDefinition)
 
 
-def is_comparison(obj: Any) -> TypeGuard[DBFieldClassComparison]:
-    from iceaxe.base import DBFieldClassComparison
+def is_comparison(obj: Any) -> TypeGuard[FieldComparison]:
+    from iceaxe.comparison import FieldComparison
 
-    return isinstance(obj, DBFieldClassComparison)
+    return isinstance(obj, FieldComparison)
+
+
+def is_comparison_group(obj: Any) -> TypeGuard[FieldComparisonGroup]:
+    from iceaxe.comparison import FieldComparisonGroup
+
+    return isinstance(obj, FieldComparisonGroup)
 
 
 def is_literal(obj: Any) -> TypeGuard[QueryLiteral]:
@@ -57,18 +62,6 @@ def is_function_metadata(obj: Any) -> TypeGuard[FunctionMetadata]:
     from iceaxe.functions import FunctionMetadata
 
     return isinstance(obj, FunctionMetadata)
-
-
-def is_function_metadata_comparison(obj: Any) -> TypeGuard[FunctionMetadataComparison]:
-    from iceaxe.functions import FunctionMetadataComparison
-
-    return isinstance(obj, FunctionMetadataComparison)
-
-
-def is_comparison_group(obj: Any) -> TypeGuard[MetadataComparisonGroup]:
-    from iceaxe.queries import MetadataComparisonGroup
-
-    return isinstance(obj, MetadataComparisonGroup)
 
 
 def column(obj: Any):
