@@ -183,6 +183,40 @@ class DBConnection:
                     query = f"DELETE FROM {table_name} WHERE {primary_key_name} = $1"
                     await self.conn.execute(query, getattr(obj, primary_key))
 
+    async def refresh(self, objects: Sequence[TableBase]):
+        for model, model_objects in self._aggregate_models_by_table(objects):
+            table_name = QueryIdentifier(model.get_table_name())
+            primary_key = self._get_primary_key(model)
+            fields = [
+                field for field, info in model.model_fields.items() if not info.exclude
+            ]
+
+            if not primary_key:
+                raise ValueError(
+                    f"Model {model} has no primary key, required to UPDATE with ORM objects"
+                )
+
+            primary_key_name = QueryIdentifier(primary_key)
+            object_ids = {getattr(obj, primary_key) for obj in model_objects}
+
+            query = f"SELECT * FROM {table_name} WHERE {primary_key_name} = ANY($1)"
+            results = {
+                result[primary_key]: result
+                for result in await self.conn.fetch(query, list(object_ids))
+            }
+
+            # Update the objects in-place
+            for obj in model_objects:
+                obj_id = getattr(obj, primary_key)
+                if obj_id in results:
+                    # Update field-by-field
+                    for field in fields:
+                        setattr(obj, field, results[obj_id][field])
+                else:
+                    LOGGER.error(
+                        f"Object {obj} with primary key {obj_id} not found in database"
+                    )
+
     def _aggregate_models_by_table(self, objects: Sequence[TableBase]):
         objects_by_class: defaultdict[Type[TableBase], list[TableBase]] = defaultdict(
             list
