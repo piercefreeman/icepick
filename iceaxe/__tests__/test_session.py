@@ -68,6 +68,22 @@ async def test_db_obj_mixin_track_modifications():
 
 
 @pytest.mark.asyncio
+async def test_db_connection_delete_query(db_connection: DBConnection):
+    userdemo = [
+        UserDemo(name="John Doe", email="john@example.com"),
+        UserDemo(name="Jane Doe", email="jane@example.com"),
+    ]
+
+    await db_connection.insert(userdemo)
+
+    query = QueryBuilder().delete(UserDemo).where(UserDemo.name == "John Doe")
+    await db_connection.exec(query)
+
+    result = await db_connection.conn.fetch("SELECT * FROM userdemo")
+    assert len(result) == 1
+
+
+@pytest.mark.asyncio
 async def test_db_connection_insert_multiple(db_connection: DBConnection):
     userdemo = [
         UserDemo(name="John Doe", email="john@example.com"),

@@ -37,7 +37,8 @@ T = TypeVar(
     | PRIMITIVE_TYPES
     | PRIMITIVE_WRAPPER_TYPES
     | DATE_TYPES
-    | JSON_WRAPPER_FALLBACK,
+    | JSON_WRAPPER_FALLBACK
+    | None,
 )
 Ts = TypeVarTuple("Ts")
 
