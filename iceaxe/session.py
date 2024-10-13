@@ -53,11 +53,15 @@ class DBConnection:
     @overload
     async def exec(self, query: QueryBuilder[T, Literal["UPDATE"]]) -> None: ...
 
+    @overload
+    async def exec(self, query: QueryBuilder[T, Literal["DELETE"]]) -> None: ...
+
     async def exec(
         self,
         query: QueryBuilder[T, Literal["SELECT"]]
         | QueryBuilder[T, Literal["INSERT"]]
-        | QueryBuilder[T, Literal["UPDATE"]],
+        | QueryBuilder[T, Literal["UPDATE"]]
+        | QueryBuilder[T, Literal["DELETE"]],
     ) -> list[T] | None:
         sql_text, variables = query.build()
         LOGGER.debug(f"Executing query: {sql_text} with variables: {variables}")
