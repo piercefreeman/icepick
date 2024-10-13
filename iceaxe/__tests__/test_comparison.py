@@ -1,10 +1,12 @@
-from typing import Any
+from enum import StrEnum
+from typing import Any, cast
 
 import pytest
 
 from iceaxe.base import TableBase
 from iceaxe.comparison import ComparisonType, FieldComparison
 from iceaxe.field import DBFieldClassDefinition, FieldInfo
+from iceaxe.queries_str import QueryLiteral
 
 
 def test_comparison_type_enum():
@@ -158,3 +160,25 @@ def test_comparison_with_different_types(db_field: DBFieldClassDefinition, value
         assert result.left == db_field
         assert isinstance(result.comparison, ComparisonType)
         assert result.right == value
+
+
+def test_to_query_cast_enum():
+    """
+    In our migration constructors, we use enum names to create the postgres-native
+    enum types. This test ensures we use the name instead of the values
+    (which are otherwise prioritized by asyncpg).
+
+    """
+
+    class TestEnum(StrEnum):
+        A = "a"
+        B = "b"
+
+    class TableDemo(TableBase):
+        value: TestEnum
+
+    field_comparison = cast(FieldComparison, TableDemo.value == TestEnum.A)
+    assert field_comparison.to_query() == (
+        QueryLiteral('"tabledemo"."value" = $1'),
+        ["A"],
+    )

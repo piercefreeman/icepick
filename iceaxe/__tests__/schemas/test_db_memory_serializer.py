@@ -1,5 +1,5 @@
 from datetime import date, datetime, time, timedelta
-from enum import Enum
+from enum import Enum, IntEnum, StrEnum
 from typing import Generic, Sequence, TypeVar
 from unittest.mock import ANY
 from uuid import UUID
@@ -9,6 +9,7 @@ from pydantic import create_model
 from pydantic.fields import FieldInfo
 
 from iceaxe import Field, TableBase
+from iceaxe.field import DBFieldInfo
 from iceaxe.postgres import PostgresDateTime, PostgresTime
 from iceaxe.schemas.actions import (
     ColumnType,
@@ -17,7 +18,10 @@ from iceaxe.schemas.actions import (
     DryRunAction,
     DryRunComment,
 )
-from iceaxe.schemas.db_memory_serializer import DatabaseMemorySerializer
+from iceaxe.schemas.db_memory_serializer import (
+    DatabaseHandler,
+    DatabaseMemorySerializer,
+)
 from iceaxe.schemas.db_stubs import (
     DBColumn,
     DBConstraint,
@@ -598,7 +602,7 @@ def test_enum_column_assignment(clear_all_database_objects):
         (
             DBType(
                 name="commonenum",
-                values=frozenset({"B", "A"}),
+                values=frozenset({"b", "a"}),
                 reference_columns=frozenset({("examplemodel1", "value")}),
             ),
             [],
@@ -614,7 +618,7 @@ def test_enum_column_assignment(clear_all_database_objects):
             [
                 DBType(
                     name="commonenum",
-                    values=frozenset({"B", "A"}),
+                    values=frozenset({"b", "a"}),
                     reference_columns=frozenset({("examplemodel1", "value")}),
                 ),
                 DBTable(table_name="examplemodel1"),
@@ -632,7 +636,7 @@ def test_enum_column_assignment(clear_all_database_objects):
             [
                 DBType(
                     name="commonenum",
-                    values=frozenset({"B", "A"}),
+                    values=frozenset({"b", "a"}),
                     reference_columns=frozenset({("examplemodel1", "value")}),
                 ),
                 DBTable(table_name="examplemodel1"),
@@ -671,7 +675,7 @@ def test_enum_column_assignment(clear_all_database_objects):
         (
             DBType(
                 name="commonenum",
-                values=frozenset({"B", "A"}),
+                values=frozenset({"b", "a"}),
                 reference_columns=frozenset({("examplemodel2", "value")}),
             ),
             [],
@@ -687,7 +691,7 @@ def test_enum_column_assignment(clear_all_database_objects):
             [
                 DBType(
                     name="commonenum",
-                    values=frozenset({"B", "A"}),
+                    values=frozenset({"b", "a"}),
                     reference_columns=frozenset({("examplemodel2", "value")}),
                 ),
                 DBTable(table_name="examplemodel2"),
@@ -705,7 +709,7 @@ def test_enum_column_assignment(clear_all_database_objects):
             [
                 DBType(
                     name="commonenum",
-                    values=frozenset({"B", "A"}),
+                    values=frozenset({"b", "a"}),
                     reference_columns=frozenset({("examplemodel2", "value")}),
                 ),
                 DBTable(table_name="examplemodel2"),
@@ -1133,3 +1137,54 @@ async def test_serial_only_on_create():
         for action in actions
         if isinstance(action, DryRunAction) and action.kwargs.get("column_name") == "id"
     ] == []
+
+
+#
+# Column type parsing
+#
+
+
+def test_parse_enums():
+    class ModelA(TableBase):
+        id: int = Field(primary_key=True)
+
+    database_handler = DatabaseHandler()
+
+    class StrEnumDemo(StrEnum):
+        A = "a"
+        B = "b"
+
+    type_declaration = database_handler.handle_column_type(
+        "test_key",
+        DBFieldInfo(annotation=StrEnumDemo),
+        ModelA,
+    )
+    assert isinstance(type_declaration.custom_type, DBType)
+    assert type_declaration.custom_type.name == "strenumdemo"
+    assert type_declaration.custom_type.values == frozenset(["A", "B"])
+
+    class IntEnumDemo(IntEnum):
+        A = 1
+        B = 2
+
+    type_declaration = database_handler.handle_column_type(
+        "test_key",
+        DBFieldInfo(annotation=IntEnumDemo),
+        ModelA,
+    )
+    assert isinstance(type_declaration.custom_type, DBType)
+    assert type_declaration.custom_type.name == "intenumdemo"
+    assert type_declaration.custom_type.values == frozenset(["A", "B"])
+
+    class StandardEnumDemo(Enum):
+        A = "a"
+        B = "b"
+
+    type_declaration = database_handler.handle_column_type(
+        "test_key",
+        DBFieldInfo(annotation=StandardEnumDemo),
+        ModelA,
+    )
+    assert isinstance(type_declaration.custom_type, DBType)
+    assert type_declaration.custom_type.name == "standardenumdemo"
+    assert type_declaration.custom_type.values == frozenset(["A", "B"])

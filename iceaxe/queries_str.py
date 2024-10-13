@@ -11,6 +11,12 @@ class QueryElementBase(ABC):
     def process_value(self, value: str) -> str:
         pass
 
+    def __eq__(self, compare):
+        return str(self) == str(compare)
+
+    def __ne__(self, compare):
+        return str(self) != str(compare)
+
     def __str__(self):
         return self._value
 
