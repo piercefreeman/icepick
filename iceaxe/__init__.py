@@ -9,6 +9,7 @@ from .postgres import PostgresDateTime as PostgresDateTime, PostgresTime as Post
 from .queries import (
     QueryBuilder as QueryBuilder,
     and_ as and_,
+    delete as delete,
     or_ as or_,
     select as select,
     update as update,

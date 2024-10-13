@@ -157,6 +157,11 @@ class QueryBuilder(Generic[P, QueryType]):
         self.main_model = model
         return self  # type: ignore
 
+    def delete(self, model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
+        self.query_type = "DELETE"  # type: ignore
+        self.main_model = model
+        return self  # type: ignore
+
     def where(self, *conditions: bool):
         # During typechecking these seem like bool values, since they're the result
         # of the comparison set. But at runtime they will be the whole object that
@@ -252,6 +257,12 @@ class QueryBuilder(Generic[P, QueryType]):
             primary_table = QueryIdentifier(self.main_model.get_table_name())
             set_clause = ", ".join(f"{k} = %s" for k in self.update_values.keys())
             query = f"UPDATE {primary_table} SET {set_clause}"
+        elif self.query_type == "DELETE":
+            if not self.main_model:
+                raise ValueError("No model selected for query")
+
+            primary_table = QueryIdentifier(self.main_model.get_table_name())
+            query = f"DELETE FROM {primary_table}"
 
         if self.join_clauses:
             query += " " + " ".join(self.join_clauses)
@@ -361,3 +372,7 @@ def select(
 
 def update(model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
     return QueryBuilder().update(model)
+
+
+def delete(model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
+    return QueryBuilder().delete(model)
