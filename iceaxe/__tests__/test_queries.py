@@ -139,6 +139,14 @@ def test_update():
     )
 
 
+def test_delete():
+    new_query = QueryBuilder().delete(UserDemo).where(UserDemo.id == 1)
+    assert new_query.build() == (
+        'DELETE FROM "userdemo" WHERE "userdemo"."id" = $1',
+        [1],
+    )
+
+
 def test_text():
     new_query = QueryBuilder().text("SELECT * FROM users WHERE id = $1", 1)
     assert new_query.build() == ("SELECT * FROM users WHERE id = $1", [1])
