@@ -307,6 +307,30 @@ async def test_select_with_multiple_where_conditions(db_connection: DBConnection
 
 
 @pytest.mark.asyncio
+async def test_select_with_list_filter(db_connection: DBConnection):
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+
+    result = await db_connection.exec(
+        QueryBuilder()
+        .select(UserDemo)
+        .where(
+            column(UserDemo.name).in_(["John Doe"]),
+        )
+    )
+    assert result == [UserDemo(id=user.id, name="John Doe", email="john@example.com")]
+
+    result = await db_connection.exec(
+        QueryBuilder()
+        .select(UserDemo)
+        .where(
+            column(UserDemo.name).not_in(["John A"]),
+        )
+    )
+    assert result == [UserDemo(id=user.id, name="John Doe", email="john@example.com")]
+
+
+@pytest.mark.asyncio
 async def test_select_with_order_by_multiple_columns(db_connection: DBConnection):
     users = [
         UserDemo(name="Alice", email="alice@example.com"),

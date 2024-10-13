@@ -270,7 +270,7 @@ class QueryBuilder(Generic[P, QueryType]):
         if self.where_conditions:
             comparison_group = cast(FieldComparisonGroup, and_(*self.where_conditions))  # type: ignore
             comparison_literal, comparison_variables = comparison_group.to_query(
-                len(variables)
+                len(variables) + 1
             )
             query += f" WHERE {comparison_literal}"
             variables += comparison_variables
