@@ -1,6 +1,8 @@
 import asyncpg
+import pytest
 import pytest_asyncio
 
+from iceaxe.base import DBModelMetaclass
 from iceaxe.session import DBConnection
 
 
@@ -88,3 +90,14 @@ async def clear_all_database_objects(db_connection: DBConnection):
         END $$;
     """
     )
+
+
+@pytest.fixture
+def clear_registry():
+    current_registry = DBModelMetaclass._registry
+    DBModelMetaclass._registry = []
+
+    try:
+        yield
+    finally:
+        DBModelMetaclass._registry = current_registry

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import pytest
 
@@ -178,3 +178,15 @@ def test_not_autodetect():
         pass
 
     assert WillNotAutodetect not in DBModelMetaclass.get_registry()
+
+
+def test_not_autodetect_generic(clear_registry):
+    T = TypeVar("T")
+
+    class GenericSuperclass(TableBase, Generic[T], autodetect=False):
+        value: T
+
+    class WillAutodetect(GenericSuperclass[int]):
+        pass
+
+    assert DBModelMetaclass.get_registry() == [WillAutodetect]

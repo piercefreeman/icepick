@@ -195,14 +195,22 @@ class DBFieldClassComparison:
 @dataclass_transform(kw_only_default=True, field_specifiers=(PydanticField,))
 class DBModelMetaclass(_model_construction.ModelMetaclass):
     _registry: list[Type["TableBase"]] = []
+    # {class: kwargs}
+    _cached_args: dict[Type["TableBase"], dict[str, Any]] = {}
 
     def __new__(
         mcs, name: str, bases: tuple, namespace: dict[str, Any], **kwargs: Any
     ) -> type:
+        raw_kwargs = {**kwargs}
+
         mcs.is_constructing = True
-        autodetect = kwargs.pop("autodetect", True)
+        autodetect = mcs._extract_kwarg(kwargs, "autodetect", True)
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         mcs.is_constructing = False
+
+        # Allow future calls to subclasses / generic instantiations to reference the same
+        # kwargs as the base class
+        mcs._cached_args[cls] = raw_kwargs
 
         # If we have already set the class's fields, we should wrap them
         if hasattr(cls, "model_fields"):
@@ -250,6 +258,24 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
     @classmethod
     def get_registry(cls):
         return cls._registry
+
+    @classmethod
+    def _extract_kwarg(cls, kwargs: dict[str, Any], key: str, default: Any = None):
+        """
+        Kwarg extraction that supports standard instantiation and pydantic's approach
+        for Generic models where it hydrates a fully new class in memory with the type
+        annotations set to generic values.
+
+        """
+        if key in kwargs:
+            return kwargs.pop(key)
+
+        if "__pydantic_generic_metadata__" in kwargs:
+            origin_model = kwargs["__pydantic_generic_metadata__"]["origin"]
+            if origin_model in cls._cached_args:
+                return cls._cached_args[origin_model].get(key, default)
+
+        return default
 
 
 class UniqueConstraint(BaseModel):
