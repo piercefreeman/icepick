@@ -1161,20 +1161,18 @@ def test_parse_enums():
     )
     assert isinstance(type_declaration.custom_type, DBType)
     assert type_declaration.custom_type.name == "strenumdemo"
-    assert type_declaration.custom_type.values == frozenset(["A", "B"])
+    assert type_declaration.custom_type.values == frozenset(["a", "b"])
 
     class IntEnumDemo(IntEnum):
         A = 1
         B = 2
 
-    type_declaration = database_handler.handle_column_type(
-        "test_key",
-        DBFieldInfo(annotation=IntEnumDemo),
-        ModelA,
-    )
-    assert isinstance(type_declaration.custom_type, DBType)
-    assert type_declaration.custom_type.name == "intenumdemo"
-    assert type_declaration.custom_type.values == frozenset(["A", "B"])
+    with pytest.raises(ValueError, match="string values are supported for enums"):
+        database_handler.handle_column_type(
+            "test_key",
+            DBFieldInfo(annotation=IntEnumDemo),
+            ModelA,
+        )
 
     class StandardEnumDemo(Enum):
         A = "a"
@@ -1187,4 +1185,4 @@ def test_parse_enums():
     )
     assert isinstance(type_declaration.custom_type, DBType)
     assert type_declaration.custom_type.name == "standardenumdemo"
-    assert type_declaration.custom_type.values == frozenset(["A", "B"])
+    assert type_declaration.custom_type.values == frozenset(["a", "b"])

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Any, Generic, Self, TypeVar
 
 from iceaxe.queries_str import QueryElementBase, QueryLiteral
@@ -49,11 +49,6 @@ class FieldComparison(Generic[T]):
             if self.right is None:
                 # "None" values are not supported as query variables
                 value = QueryLiteral("NULL")
-            elif isinstance(self.right, Enum):
-                # Special case to use the key of an Enum as a static value, since these
-                # are how they're configured in postgres
-                variables.append(self.right.name)
-                value = QueryLiteral("$" + str(len(variables) + start))
             else:
                 # Support comparison to static values
                 variables.append(self.right)
