@@ -7,7 +7,6 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled]
-
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -45,11 +44,6 @@ jobs:
           poetry run pytest -v --continue-on-collection-errors
         env:
           ICEAXE_LOG_LEVEL: DEBUG
-      # - name: Run integration tests
-      #   run: |
-      #     poetry run pytest -v --continue-on-collection-errors -m integration_tests
-      #   env:
-      #     ICEAXE_LOG_LEVEL: DEBUG
 
   lint:
     runs-on: ubuntu-latest
@@ -75,29 +69,64 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.12"
+
       - name: Install Poetry
         uses: snok/install-poetry@v1
-      - name: Install dependencies
-        run: poetry install
+
+      - name: Clean build artifacts
+        run: |
+          rm -rf build/
+          rm -rf iceaxe/*.so
+          rm -rf *.egg-info/
+          find . -type f -name "*.so" -delete
+          find . -type f -name "*.o" -delete
+          find . -type f -name "*.c" -delete
+
       - name: Update version in pyproject.toml
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           poetry version $VERSION
         shell: bash
-      - name: Build package
-        run: |
-          poetry build
-          mv dist dist-raw
-      - name: Upload built package as artifact
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build SDist
+        if: matrix.os == 'ubuntu-latest'
+        run: poetry build --format sdist
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.16.5
+        env:
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_BUILD: cp311-* cp312-*
+          CIBW_SKIP: "*-musllinux*"
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_ENVIRONMENT: "CFLAGS='-std=c99'"
+          CIBW_BEFORE_BUILD: |
+            rm -rf {project}/build/
+            rm -rf {project}/*.egg-info/
+            find {project} -type f -name "*.so" -delete
+            find {project} -type f -name "*.o" -delete
+            find {project} -type f -name "*.c" -delete
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}
-          path: dist-raw/
+          path: |
+            dist/
+            wheelhouse/
 
   release:
     needs: [full-build]
@@ -114,15 +143,18 @@ jobs:
         with:
           name: dist-ubuntu-latest
           path: dist-raw/ubuntu
+
       - name: Download macOS build
         uses: actions/download-artifact@v4
         with:
           name: dist-macos-latest
           path: dist-raw/macos
+
       - name: Prepare distribution files
         run: |
           mkdir dist
           cp dist-raw/ubuntu/* dist/
           cp dist-raw/macos/* dist/
+
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
