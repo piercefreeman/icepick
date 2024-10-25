@@ -78,8 +78,14 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
 
-      - name: Install dependencies
-        run: poetry install
+      - name: Clean build artifacts
+        run: |
+          rm -rf build/
+          rm -rf iceaxe/*.so
+          rm -rf *.egg-info/
+          find . -type f -name "*.so" -delete
+          find . -type f -name "*.o" -delete
+          find . -type f -name "*.c" -delete
 
       - name: Update version in pyproject.toml
         if: startsWith(github.ref, 'refs/tags/v')
@@ -104,6 +110,15 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_BUILD: cp311-* cp312-*
           CIBW_SKIP: "*-musllinux*"
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+          CIBW_ENVIRONMENT: "CFLAGS='-std=c99'"
+          CIBW_BEFORE_BUILD: |
+            rm -rf {project}/build/
+            rm -rf {project}/*.egg-info/
+            find {project} -type f -name "*.so" -delete
+            find {project} -type f -name "*.o" -delete
+            find {project} -type f -name "*.c" -delete
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
