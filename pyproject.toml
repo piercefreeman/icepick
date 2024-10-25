@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "iceaxe"
 version = "0.1.0"
-description = ""
+description = "A modern, fast ORM for Python."
 authors = ["Pierce Freeman <pierce@freeman.vc>"]
 readme = "README.md"
 
