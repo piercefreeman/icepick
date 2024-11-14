@@ -7,7 +7,6 @@ from uuid import UUID
 from pydantic_core import PydanticUndefined
 
 from iceaxe.base import (
-    INTERNAL_TABLE_FIELDS,
     DBFieldInfo,
     IndexConstraint,
     TableBase,
@@ -244,11 +243,7 @@ class DatabaseHandler:
 
         # Handle the columns
         all_column_nodes: list[NodeDefinition] = []
-        for field_name, field in table.model_fields.items():
-            # Only create user-columns
-            if field_name in INTERNAL_TABLE_FIELDS:
-                continue
-
+        for field_name, field in table.get_client_fields().items():
             column_nodes = self._yield_nodes(
                 self.convert_column(field_name, field, table), dependencies=table_nodes
             )

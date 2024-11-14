@@ -165,8 +165,15 @@ class QueryBuilder(Generic[P, QueryType]):
                 self.select_raw.append(field)
             elif is_base_table(field):
                 table_token = QueryIdentifier(field.get_table_name())
-                field_token = QueryLiteral("*")
-                self.select_fields.append(QueryLiteral(f"{table_token}.{field_token}"))
+
+                for field_name in field.get_client_fields():
+                    field_token = QueryIdentifier(field_name)
+                    return_field = QueryIdentifier(
+                        f"{field.get_table_name()}_{field_name}"
+                    )
+                    self.select_fields.append(
+                        QueryLiteral(f"{table_token}.{field_token} as {return_field}")
+                    )
                 self.select_raw.append(field)
             elif is_function_metadata(field):
                 field.local_name = f"aggregate_{self.select_aggregate_count}"

@@ -136,3 +136,11 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         if cls.table_name == PydanticUndefined:
             return cls.__name__.lower()
         return cls.table_name
+
+    @classmethod
+    def get_client_fields(cls):
+        return {
+            field: info
+            for field, info in cls.model_fields.items()
+            if field not in INTERNAL_TABLE_FIELDS
+        }

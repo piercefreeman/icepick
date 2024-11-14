@@ -9,7 +9,11 @@ from iceaxe.queries import QueryBuilder, and_, or_, select
 
 def test_select():
     new_query = QueryBuilder().select(UserDemo)
-    assert new_query.build() == ('SELECT "userdemo".* FROM "userdemo"', [])
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo"',
+        [],
+    )
 
 
 def test_select_single_field():
