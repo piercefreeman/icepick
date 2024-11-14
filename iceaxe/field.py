@@ -1,3 +1,4 @@
+from json import dumps as json_dumps
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -92,6 +93,11 @@ class DBFieldInfo(FieldInfo):
             **field._attributes_set,  # type: ignore
         )
 
+    def to_db_value(self, value: Any):
+        if self.is_json:
+            return json_dumps(value)
+        return value
+
 
 def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # type: ignore
     """
@@ -136,13 +142,13 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
 class DBFieldClassDefinition(ComparisonBase):
     root_model: Type["TableBase"]
     key: str
-    field_definition: FieldInfo
+    field_definition: DBFieldInfo
 
     def __init__(
         self,
         root_model: Type["TableBase"],
         key: str,
-        field_definition: FieldInfo,
+        field_definition: DBFieldInfo,
     ):
         self.root_model = root_model
         self.key = key

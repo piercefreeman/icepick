@@ -1,6 +1,5 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from json import dumps as json_dumps
 from typing import (
     Any,
     Literal,
@@ -13,6 +12,7 @@ from typing import (
 )
 
 import asyncpg
+from typing_extensions import TypeVarTuple
 
 from iceaxe.base import TableBase
 from iceaxe.logging import LOGGER
@@ -27,6 +27,7 @@ from iceaxe.session_optimized import optimize_exec_casting
 
 P = ParamSpec("P")
 T = TypeVar("T")
+Ts = TypeVarTuple("Ts")
 
 
 class DBConnection:
@@ -94,23 +95,11 @@ class DBConnection:
             return
 
         for model, model_objects in self._aggregate_models_by_table(objects):
-            # We let the DB handle autoincrement keys
-            auto_increment_keys = [
-                field
-                for field, info in model.model_fields.items()
-                if info.autoincrement
-            ]
-
             table_name = QueryIdentifier(model.get_table_name())
-            fields = [
-                field
+            fields = {
+                field: info
                 for field, info in model.model_fields.items()
-                if not info.exclude
-                and not info.autoincrement
-                and field not in auto_increment_keys
-            ]
-            json_fields = {
-                field for field, info in model.model_fields.items() if info.is_json
+                if (not info.exclude and not info.autoincrement)
             }
             field_string = ", ".join(f'"{field}"' for field in fields)
             primary_key = self._get_primary_key(model)
@@ -124,16 +113,127 @@ class DBConnection:
                 for obj in model_objects:
                     obj_values = obj.model_dump()
                     values = [
-                        obj_values[field]
-                        if field not in json_fields
-                        else json_dumps(obj_values[field])
-                        for field in fields
+                        info.to_db_value(obj_values[field])
+                        for field, info in fields.items()
                     ]
                     result = await self.conn.fetchrow(query, *values)
 
                     if primary_key and result:
                         setattr(obj, primary_key, result[primary_key])
                     obj.clear_modified_attributes()
+
+    @overload
+    async def upsert(
+        self,
+        objects: Sequence[TableBase],
+        *,
+        conflict_fields: tuple[Any, ...],
+        update_fields: tuple[Any, ...] | None = None,
+        returning_fields: tuple[T, *Ts],
+    ) -> list[tuple[T, *Ts]]: ...
+
+    @overload
+    async def upsert(
+        self,
+        objects: Sequence[TableBase],
+        *,
+        conflict_fields: tuple[Any, ...],
+        update_fields: tuple[Any, ...] | None = None,
+        returning_fields: None,
+    ) -> None: ...
+
+    async def upsert(
+        self,
+        objects: Sequence[TableBase],
+        *,
+        conflict_fields: tuple[Any, ...],
+        update_fields: tuple[Any, ...] | None = None,
+        returning_fields: tuple[T, *Ts] | None = None,
+    ) -> list[tuple[T, *Ts]] | None:
+        """
+        Performs an upsert (INSERT ... ON CONFLICT DO UPDATE) operation for the given objects.
+
+        :param objects: Sequence of TableBase objects to upsert
+        :param conflict_fields: Fields to check for conflicts (ON CONFLICT)
+        :param update_fields: Fields to update on conflict. If None, updates all non-excluded fields
+        :param returning_fields: Fields to return after the operation. If None, returns nothing
+
+        :return List of dictionaries containing the returned fields if returning_fields is specified
+
+        """
+        if not objects:
+            return None
+
+        # Evaluate column types
+        conflict_fields_cols = [field for field in conflict_fields if is_column(field)]
+        update_fields_cols = [
+            field for field in update_fields or [] if is_column(field)
+        ]
+        returning_fields_cols = [
+            field for field in returning_fields or [] if is_column(field)
+        ]
+
+        results: list[tuple[T, *Ts]] = []
+        async with self._ensure_transaction():
+            for model, model_objects in self._aggregate_models_by_table(objects):
+                table_name = QueryIdentifier(model.get_table_name())
+                fields = {
+                    field: info
+                    for field, info in model.model_fields.items()
+                    if (not info.exclude and not info.autoincrement)
+                }
+
+                field_string = ", ".join(f'"{field}"' for field in fields)
+                placeholders = ", ".join(f"${i}" for i in range(1, len(fields) + 1))
+                query = (
+                    f"INSERT INTO {table_name} ({field_string}) VALUES ({placeholders})"
+                )
+                if conflict_fields_cols:
+                    conflict_field_string = ", ".join(
+                        f'"{field.key}"' for field in conflict_fields_cols
+                    )
+                    query += f" ON CONFLICT ({conflict_field_string})"
+
+                    if update_fields_cols:
+                        set_values = ", ".join(
+                            f'"{field.key}" = EXCLUDED."{field.key}"'
+                            for field in update_fields_cols
+                        )
+                        query += f" DO UPDATE SET {set_values}"
+                    else:
+                        query += " DO NOTHING"
+
+                if returning_fields_cols:
+                    returning_string = ", ".join(
+                        f'"{field.key}"' for field in returning_fields_cols
+                    )
+                    query += f" RETURNING {returning_string}"
+
+                # Execute for each object
+                for obj in model_objects:
+                    obj_values = obj.model_dump()
+                    values = [
+                        info.to_db_value(obj_values[field])
+                        for field, info in fields.items()
+                    ]
+
+                    if returning_fields_cols:
+                        result = await self.conn.fetchrow(query, *values)
+                        if result:
+                            results.append(
+                                tuple(
+                                    [
+                                        result[field.key]
+                                        for field in returning_fields_cols
+                                    ]
+                                )
+                            )
+                    else:
+                        await self.conn.execute(query, *values)
+
+                    obj.clear_modified_attributes()
+
+        return results if returning_fields_cols else None
 
     async def update(self, objects: Sequence[TableBase]):
         if not objects:

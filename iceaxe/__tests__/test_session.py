@@ -512,3 +512,182 @@ async def test_db_connection_insert_update_enum(db_connection: DBConnection):
     result = await db_connection.conn.fetch("SELECT * FROM enumdemo")
     assert len(result) == 1
     assert result[0]["value"] == "b"
+
+
+#
+# Upsert
+#
+
+
+@pytest.mark.asyncio
+async def test_upsert_basic_insert(db_connection: DBConnection):
+    """
+    Test basic insert when no conflict exists
+
+    """
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (email)
+        """
+    )
+
+    user = UserDemo(name="John Doe", email="john@example.com")
+    result = await db_connection.upsert(
+        [user],
+        conflict_fields=(UserDemo.email,),
+        returning_fields=(UserDemo.id, UserDemo.name, UserDemo.email),
+    )
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0][1] == "John Doe"
+    assert result[0][2] == "john@example.com"
+
+    # Verify in database
+    db_result = await db_connection.conn.fetch("SELECT * FROM userdemo")
+    assert len(db_result) == 1
+    assert db_result[0][1] == "John Doe"
+
+
+@pytest.mark.asyncio
+async def test_upsert_update_on_conflict(db_connection: DBConnection):
+    """
+    Test update when conflict exists
+
+    """
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (email)
+        """
+    )
+
+    # First insert
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+
+    # Attempt upsert with same email but different name
+    new_user = UserDemo(name="Johnny Doe", email="john@example.com")
+    result = await db_connection.upsert(
+        [new_user],
+        conflict_fields=(UserDemo.email,),
+        update_fields=(UserDemo.name,),
+        returning_fields=(UserDemo.id, UserDemo.name, UserDemo.email),
+    )
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0][1] == "Johnny Doe"
+
+    # Verify only one record exists
+    db_result = await db_connection.conn.fetch("SELECT * FROM userdemo")
+    assert len(db_result) == 1
+    assert db_result[0]["name"] == "Johnny Doe"
+
+
+@pytest.mark.asyncio
+async def test_upsert_do_nothing_on_conflict(db_connection: DBConnection):
+    """
+    Test DO NOTHING behavior when no update_fields specified
+
+    """
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (email)
+        """
+    )
+
+    # First insert
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+
+    # Attempt upsert with same email but different name
+    new_user = UserDemo(name="Johnny Doe", email="john@example.com")
+    result = await db_connection.upsert(
+        [new_user],
+        conflict_fields=(UserDemo.email,),
+        returning_fields=(UserDemo.id, UserDemo.name, UserDemo.email),
+    )
+
+    # Should return empty list as no update was performed
+    assert result == []
+
+    # Verify original record unchanged
+    db_result = await db_connection.conn.fetch("SELECT * FROM userdemo")
+    assert len(db_result) == 1
+    assert db_result[0][1] == "John Doe"
+
+
+@pytest.mark.asyncio
+async def test_upsert_multiple_objects(db_connection: DBConnection):
+    """
+    Test upserting multiple objects at once
+
+    """
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (email)
+        """
+    )
+
+    users = [
+        UserDemo(name="John Doe", email="john@example.com"),
+        UserDemo(name="Jane Doe", email="jane@example.com"),
+    ]
+    result = await db_connection.upsert(
+        users,
+        conflict_fields=(UserDemo.email,),
+        returning_fields=(UserDemo.name, UserDemo.email),
+    )
+
+    assert result is not None
+    assert len(result) == 2
+    assert {r[1] for r in result} == {"john@example.com", "jane@example.com"}
+
+
+@pytest.mark.asyncio
+async def test_upsert_empty_list(db_connection: DBConnection):
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (email)
+        """
+    )
+
+    """Test upserting an empty list"""
+    result = await db_connection.upsert(
+        [], conflict_fields=(UserDemo.email,), returning_fields=(UserDemo.id,)
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_upsert_multiple_conflict_fields(db_connection: DBConnection):
+    """
+    Test upserting with multiple conflict fields
+
+    """
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (name, email)
+        """
+    )
+
+    users = [
+        UserDemo(name="John Doe", email="john@example.com"),
+        UserDemo(name="John Doe", email="john@example.com"),
+        UserDemo(name="Jane Doe", email="jane@example.com"),
+    ]
+    result = await db_connection.upsert(
+        users,
+        conflict_fields=(UserDemo.name, UserDemo.email),
+        returning_fields=(UserDemo.name, UserDemo.email),
+    )
+
+    assert result is not None
+    assert len(result) == 2
+    assert {r[1] for r in result} == {"john@example.com", "jane@example.com"}
