@@ -29,17 +29,20 @@ from iceaxe.typing import (
 
 P = TypeVar("P")
 
-T = TypeVar(
-    "T",
-    bound=TableBase
+SUPPORTED_SELECTS = (
+    TableBase
     | DBModelMetaclass
     | ALL_ENUM_TYPES
     | PRIMITIVE_TYPES
     | PRIMITIVE_WRAPPER_TYPES
     | DATE_TYPES
     | JSON_WRAPPER_FALLBACK
-    | None,
+    | None
 )
+
+T = TypeVar("T", bound=SUPPORTED_SELECTS)
+T2 = TypeVar("T2", bound=SUPPORTED_SELECTS)
+T3 = TypeVar("T3", bound=SUPPORTED_SELECTS)
 Ts = TypeVarTuple("Ts")
 
 
@@ -102,18 +105,42 @@ class QueryBuilder(Generic[P, QueryType]):
 
     @overload
     def select(
-        self, fields: tuple[T | Type[T], *Ts]
-    ) -> QueryBuilder[tuple[T, *Ts], Literal["SELECT"]]: ...
+        self, fields: tuple[T | Type[T]]
+    ) -> QueryBuilder[tuple[T], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self, fields: tuple[T | Type[T], T2 | Type[T2]]
+    ) -> QueryBuilder[tuple[T, T2], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self, fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
+    ) -> QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]: ...
 
     def select(
-        self, fields: T | Type[T] | tuple[T | Type[T], *Ts]
+        self,
+        fields: (
+            T
+            | Type[T]
+            | tuple[T | Type[T]]
+            | tuple[T | Type[T], T2 | Type[T2]]
+            | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
+        ),
     ) -> (
-        QueryBuilder[tuple[T, *Ts], Literal["SELECT"]]
-        | QueryBuilder[T, Literal["SELECT"]]
+        QueryBuilder[T, Literal["SELECT"]]
+        | QueryBuilder[tuple[T], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
     ):
         """
         Creates a new select query for the given fields. Returns the same
         QueryBuilder that is now flagged as a SELECT query.
+
+        Our select @overrides here support the required conversion from a table class (which
+        is specified as raw input) to individual instances which are returned. This is only
+        relevant for table classes since field selections should be 1:1 mirrored from the
+        request field annotation to the response type.
 
         """
         all_fields: tuple[
@@ -165,8 +192,15 @@ class QueryBuilder(Generic[P, QueryType]):
                 self.select_raw.append(field)
             elif is_base_table(field):
                 table_token = QueryIdentifier(field.get_table_name())
-                field_token = QueryLiteral("*")
-                self.select_fields.append(QueryLiteral(f"{table_token}.{field_token}"))
+
+                for field_name in field.get_client_fields():
+                    field_token = QueryIdentifier(field_name)
+                    return_field = QueryIdentifier(
+                        f"{field.get_table_name()}_{field_name}"
+                    )
+                    self.select_fields.append(
+                        QueryLiteral(f"{table_token}.{field_token} as {return_field}")
+                    )
                 self.select_raw.append(field)
             elif is_function_metadata(field):
                 field.local_name = f"aggregate_{self.select_aggregate_count}"
@@ -460,14 +494,35 @@ def select(fields: T | Type[T]) -> QueryBuilder[T, Literal["SELECT"]]: ...
 
 @overload
 def select(
-    fields: tuple[T | Type[T], *Ts],
-) -> QueryBuilder[tuple[T, *Ts], Literal["SELECT"]]: ...
+    fields: tuple[T | Type[T]],
+) -> QueryBuilder[tuple[T], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[T | Type[T], T2 | Type[T2]],
+) -> QueryBuilder[tuple[T, T2], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts],
+) -> QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]: ...
 
 
 def select(
-    fields: T | Type[T] | tuple[T | Type[T], *Ts],
+    fields: (
+        T
+        | Type[T]
+        | tuple[T | Type[T]]
+        | tuple[T | Type[T], T2 | Type[T2]]
+        | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
+    ),
 ) -> (
-    QueryBuilder[tuple[T, *Ts], Literal["SELECT"]] | QueryBuilder[T, Literal["SELECT"]]
+    QueryBuilder[T, Literal["SELECT"]]
+    | QueryBuilder[tuple[T], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
 ):
     """
     Shortcut to create a SELECT query with a new QueryBuilder.

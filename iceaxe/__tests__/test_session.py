@@ -282,6 +282,30 @@ async def test_select_join(db_connection: DBConnection):
 
 
 @pytest.mark.asyncio
+async def test_select_join_multiple_tables(db_connection: DBConnection):
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+    assert user.id is not None
+
+    artifact = ArtifactDemo(title="Artifact 1", user_id=user.id)
+    await db_connection.insert([artifact])
+
+    new_query = (
+        QueryBuilder()
+        .select((ArtifactDemo, UserDemo))
+        .join(UserDemo, UserDemo.id == ArtifactDemo.user_id)
+        .where(UserDemo.name == "John Doe")
+    )
+    result = await db_connection.exec(new_query)
+    assert result == [
+        (
+            ArtifactDemo(id=artifact.id, title="Artifact 1", user_id=user.id),
+            UserDemo(id=user.id, name="John Doe", email="john@example.com"),
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_select_with_limit_and_offset(db_connection: DBConnection):
     users = [
         UserDemo(name="User 1", email="user1@example.com"),
