@@ -4,13 +4,13 @@ import pytest
 
 from iceaxe.base import TableBase
 from iceaxe.comparison import ComparisonType, FieldComparison
-from iceaxe.field import DBFieldClassDefinition, FieldInfo
+from iceaxe.field import DBFieldClassDefinition, DBFieldInfo
 
 
 @pytest.fixture
 def db_field():
     return DBFieldClassDefinition(
-        root_model=TableBase, key="test_key", field_definition=FieldInfo()
+        root_model=TableBase, key="test_key", field_definition=DBFieldInfo()
     )
 
 
@@ -107,7 +107,7 @@ def test_compare(db_field: DBFieldClassDefinition):
         3.14,
         complex(1, 2),
         DBFieldClassDefinition(
-            root_model=TableBase, key="other_key", field_definition=FieldInfo()
+            root_model=TableBase, key="other_key", field_definition=DBFieldInfo()
         ),
     ],
 )
@@ -132,8 +132,8 @@ def test_comparison_with_different_types(db_field: DBFieldClassDefinition, value
 
 def test_db_field_class_definition_instantiation():
     field_def = DBFieldClassDefinition(
-        root_model=TableBase, key="test_key", field_definition=FieldInfo()
+        root_model=TableBase, key="test_key", field_definition=DBFieldInfo()
     )
     assert field_def.root_model == TableBase
     assert field_def.key == "test_key"
-    assert isinstance(field_def.field_definition, FieldInfo)
+    assert isinstance(field_def.field_definition, DBFieldInfo)

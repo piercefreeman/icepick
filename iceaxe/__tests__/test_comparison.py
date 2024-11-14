@@ -4,7 +4,7 @@ import pytest
 
 from iceaxe.base import TableBase
 from iceaxe.comparison import ComparisonType, FieldComparison
-from iceaxe.field import DBFieldClassDefinition, FieldInfo
+from iceaxe.field import DBFieldClassDefinition, DBFieldInfo
 
 
 def test_comparison_type_enum():
@@ -24,7 +24,7 @@ def test_comparison_type_enum():
 @pytest.fixture
 def db_field():
     return DBFieldClassDefinition(
-        root_model=TableBase, key="test_key", field_definition=FieldInfo()
+        root_model=TableBase, key="test_key", field_definition=DBFieldInfo()
     )
 
 
@@ -137,7 +137,7 @@ def test_compare(db_field: DBFieldClassDefinition):
         3.14,
         complex(1, 2),
         DBFieldClassDefinition(
-            root_model=TableBase, key="other_key", field_definition=FieldInfo()
+            root_model=TableBase, key="other_key", field_definition=DBFieldInfo()
         ),
     ],
 )
