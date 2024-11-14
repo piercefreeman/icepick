@@ -137,6 +137,11 @@ class QueryBuilder(Generic[P, QueryType]):
         Creates a new select query for the given fields. Returns the same
         QueryBuilder that is now flagged as a SELECT query.
 
+        Our select @overrides here support the required conversion from a table class (which
+        is specified as raw input) to individual instances which are returned. This is only
+        relevant for table classes since field selections should be 1:1 mirrored from the
+        request field annotation to the response type.
+
         """
         all_fields: tuple[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...
