@@ -282,7 +282,7 @@ async def test_select_join(db_connection: DBConnection):
 
 
 @pytest.mark.asyncio
-async def test_select_join_objects(db_connection: DBConnection):
+async def test_select_join_multiple_tables(db_connection: DBConnection):
     user = UserDemo(name="John Doe", email="john@example.com")
     await db_connection.insert([user])
     assert user.id is not None
