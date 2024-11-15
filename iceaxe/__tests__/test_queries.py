@@ -267,3 +267,13 @@ def test_select_multiple_typehints():
     query = select((UserDemo, UserDemo.id, UserDemo.name))
     if TYPE_CHECKING:
         _: QueryBuilder[tuple[UserDemo, int, str], Literal["SELECT"]] = query
+
+
+def test_allow_branching():
+    base_query = select(UserDemo)
+
+    query_1 = base_query.limit(1)
+    query_2 = base_query.limit(2)
+
+    assert query_1.limit_value == 1
+    assert query_2.limit_value == 2
