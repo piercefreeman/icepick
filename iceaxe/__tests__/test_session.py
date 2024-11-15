@@ -442,6 +442,32 @@ async def test_select_with_left_join(db_connection: DBConnection):
     assert result[1] == ("John", 2)
 
 
+@pytest.mark.asyncio
+async def test_select_with_left_join_object(db_connection: DBConnection):
+    users = [
+        UserDemo(name="John", email="john@example.com"),
+        UserDemo(name="Jane", email="jane@example.com"),
+    ]
+    await db_connection.insert(users)
+
+    posts = [
+        ArtifactDemo(title="John's Post", user_id=users[0].id),
+        ArtifactDemo(title="Another Post", user_id=users[0].id),
+    ]
+    await db_connection.insert(posts)
+
+    query = (
+        QueryBuilder()
+        .select((UserDemo, ArtifactDemo))
+        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, "LEFT")
+    )
+    result = await db_connection.exec(query)
+    assert len(result) == 3
+    assert result[0] == (users[0], posts[0])
+    assert result[1] == (users[0], posts[1])
+    assert result[2] == (users[1], None)
+
+
 # @pytest.mark.asyncio
 # async def test_select_with_subquery(db_connection: DBConnection):
 #     users = [
