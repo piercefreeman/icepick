@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import copy
+from functools import wraps
 from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, cast, overload
 
 from iceaxe.base import (
@@ -51,6 +53,22 @@ QueryType = TypeVar("QueryType", bound=Literal["SELECT", "INSERT", "UPDATE", "DE
 
 JoinType = Literal["INNER", "LEFT", "RIGHT", "FULL"]
 OrderDirection = Literal["ASC", "DESC"]
+
+
+def allow_branching(fn):
+    """
+    Allows query method modifiers to implement their logic as if `self` is being
+    modified, but in the background we'll actually return a new instance of the
+    query builder to allow for branching of the same underlying query.
+
+    """
+
+    @wraps(fn)
+    def new_fn(self, *args, **kwargs):
+        self = copy(self)
+        return fn(self, *args, **kwargs)
+
+    return new_fn
 
 
 class QueryBuilder(Generic[P, QueryType]):
@@ -118,6 +136,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self, fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
     ) -> QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]: ...
 
+    @allow_branching
     def select(
         self,
         fields: (
@@ -212,6 +231,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 self.select_raw.append(field)
                 self.select_aggregate_count += 1
 
+    @allow_branching
     def update(self, model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
         """
         Creates a new update query for the given model. Returns the same
@@ -222,6 +242,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.main_model = model
         return self  # type: ignore
 
+    @allow_branching
     def delete(self, model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
         """
         Creates a new delete query for the given model. Returns the same
@@ -232,6 +253,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.main_model = model
         return self  # type: ignore
 
+    @allow_branching
     def where(self, *conditions: bool):
         """
         Adds a where condition to the query. The conditions are combined with
@@ -250,6 +272,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.where_conditions += validated_comparisons
         return self
 
+    @allow_branching
     def order_by(self, field: Any, direction: OrderDirection = "ASC"):
         """
         Adds an order by clause to the query. The field must be a column.
@@ -265,6 +288,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.order_by_clauses.append(f"{field_token} {direction}")
         return self
 
+    @allow_branching
     def join(self, table: Type[TableBase], on: bool, join_type: JoinType = "INNER"):
         """
         Adds a join clause to the query. The `on` parameter should be a comparison
@@ -289,6 +313,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.join_clauses.append(join_sql)
         return self
 
+    @allow_branching
     def set(self, column: T, value: T | None):
         """
         Sets a column to a specific value in an update query.
@@ -300,6 +325,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.update_values.append((column, value))
         return self
 
+    @allow_branching
     def limit(self, value: int):
         """
         Limit the number of rows returned by the query. Useful in pagination
@@ -309,6 +335,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.limit_value = value
         return self
 
+    @allow_branching
     def offset(self, value: int):
         """
         Offset the number of rows returned by the query.
@@ -317,6 +344,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.offset_value = value
         return self
 
+    @allow_branching
     def group_by(self, *fields: Any):
         """
         Groups the results of the query by the given fields. This allows
@@ -334,6 +362,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.group_by_fields = valid_fields
         return self
 
+    @allow_branching
     def having(self, *conditions: bool):
         """
         Require the result of an aggregation query like func.sum(MyTable.column)
@@ -351,6 +380,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.having_conditions += valid_conditions
         return self
 
+    @allow_branching
     def text(self, query: str, *variables: Any):
         """
         Override the ORM builder and use a raw SQL query instead.
