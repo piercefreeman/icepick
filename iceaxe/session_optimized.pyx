@@ -98,6 +98,7 @@ cdef list process_values(
     cdef object field_value
     cdef object select_raw
     cdef PyObject* temp_obj
+    cdef bint all_none
 
     for i in range(num_values):
         value = values[i]
@@ -112,6 +113,9 @@ cdef list process_values(
                 if raw_is_table:
                     obj_dict = {}
                     num_fields = num_fields_array[j]
+                    all_none = True
+
+                    # First pass: collect all fields and check if they're all None
                     for k in range(num_fields):
                         field_name_c = fields[j][k].name
                         select_name_c = fields[j][k].select_attribute
@@ -119,22 +123,29 @@ cdef list process_values(
                         select_name = select_name_c.decode('utf-8')
 
                         try:
-                            field_value = value[select_name]  # Use Python dictionary access instead of PyObject_GetItem
+                            field_value = value[select_name]
                         except KeyError:
                             raise KeyError(f"Key '{select_name}' not found in value.")
 
-                        if fields[j][k].is_json:
-                            field_value = json_loads(field_value)
+                        if field_value is not None:
+                            all_none = False
+                            if fields[j][k].is_json:
+                                field_value = json_loads(field_value)
 
                         obj_dict[field_name] = field_value
 
-                    obj = select_raw(**obj_dict)
-                    result_value[j] = <PyObject*>obj
-                    Py_INCREF(obj)  # Increment reference count for the stored object
+                    # If all fields are None, store None instead of creating the table object
+                    if all_none:
+                        result_value[j] = <PyObject*>None
+                        Py_INCREF(None)
+                    else:
+                        obj = select_raw(**obj_dict)
+                        result_value[j] = <PyObject*>obj
+                        Py_INCREF(obj)
 
                 elif raw_is_column:
                     try:
-                        item = value[select_raw.key]  # Use Python dictionary access
+                        item = value[select_raw.key]
                     except KeyError:
                         raise KeyError(f"Key '{select_raw.key}' not found in value.")
                     result_value[j] = <PyObject*>item
@@ -142,7 +153,7 @@ cdef list process_values(
 
                 elif raw_is_function_metadata:
                     try:
-                        item = value[select_raw.local_name]  # Use Python dictionary access
+                        item = value[select_raw.local_name]
                     except KeyError:
                         raise KeyError(f"Key '{select_raw.local_name}' not found in value.")
                     result_value[j] = <PyObject*>item
@@ -151,11 +162,11 @@ cdef list process_values(
             # Assemble the result
             if num_selects == 1:
                 result_all[i] = <object>result_value[0]
-                Py_DECREF(<object>result_value[0])  # Decrement reference count
+                Py_DECREF(<object>result_value[0])
             else:
                 result_tuple = tuple([<object>result_value[j] for j in range(num_selects)])
                 for j in range(num_selects):
-                    Py_DECREF(<object>result_value[j])  # Decrement reference count for each item
+                    Py_DECREF(<object>result_value[j])
                 result_all[i] = result_tuple
 
         finally:
