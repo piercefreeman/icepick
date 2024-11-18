@@ -21,9 +21,9 @@ class ComparisonType(StrEnum):
     NOT_IN = "NOT IN"
 
     LIKE = "LIKE"
-    NOT_LIKE = "NOT_LIKE"
+    NOT_LIKE = "NOT LIKE"
     ILIKE = "ILIKE"
-    NOT_ILIKE = "NOT_ILIKE"
+    NOT_ILIKE = "NOT ILIKE"
 
     IS = "IS"
     IS_NOT = "IS NOT"
