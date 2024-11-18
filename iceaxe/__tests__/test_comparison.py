@@ -1,10 +1,14 @@
+from re import compile as re_compile
 from typing import Any
 
 import pytest
+from typing_extensions import assert_type
 
+from iceaxe.__tests__.helpers import pyright_raises
 from iceaxe.base import TableBase
 from iceaxe.comparison import ComparisonType, FieldComparison
 from iceaxe.field import DBFieldClassDefinition, DBFieldInfo
+from iceaxe.typing import column
 
 
 def test_comparison_type_enum():
@@ -17,6 +21,9 @@ def test_comparison_type_enum():
     assert ComparisonType.IN == "IN"
     assert ComparisonType.NOT_IN == "NOT IN"
     assert ComparisonType.LIKE == "LIKE"
+    assert ComparisonType.NOT_LIKE == "NOT LIKE"
+    assert ComparisonType.ILIKE == "ILIKE"
+    assert ComparisonType.NOT_ILIKE == "NOT ILIKE"
     assert ComparisonType.IS == "IS"
     assert ComparisonType.IS_NOT == "IS NOT"
 
@@ -158,3 +165,31 @@ def test_comparison_with_different_types(db_field: DBFieldClassDefinition, value
         assert result.left == db_field
         assert isinstance(result.comparison, ComparisonType)
         assert result.right == value
+
+
+#
+# Typehinting
+# These checks are run as part of the static typechecking we do
+# for our codebase, not as part of the pytest runtime.
+#
+
+
+def test_typehint_ilike():
+    class UserDemo(TableBase):
+        id: int
+        value_str: str
+        value_int: int
+
+    str_col = column(UserDemo.value_str)
+    int_col = column(UserDemo.value_int)
+
+    assert_type(str_col, DBFieldClassDefinition[str])
+    assert_type(int_col, DBFieldClassDefinition[int])
+
+    assert_type(str_col.ilike("test"), bool)
+
+    with pyright_raises(
+        "reportAttributeAccessIssue",
+        matches=re_compile('Cannot access attribute "ilike"'),
+    ):
+        int_col.ilike(5)  # type: ignore

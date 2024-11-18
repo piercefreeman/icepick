@@ -7,6 +7,7 @@ from iceaxe.queries_str import QueryElementBase, QueryLiteral
 from iceaxe.typing import is_column, is_comparison, is_comparison_group
 
 T = TypeVar("T", bound="ComparisonBase")
+J = TypeVar("J")
 
 
 class ComparisonType(StrEnum):
@@ -18,7 +19,12 @@ class ComparisonType(StrEnum):
     GE = ">="
     IN = "IN"
     NOT_IN = "NOT IN"
+
     LIKE = "LIKE"
+    NOT_LIKE = "NOT_LIKE"
+    ILIKE = "ILIKE"
+    NOT_ILIKE = "NOT_ILIKE"
+
     IS = "IS"
     IS_NOT = "IS NOT"
 
@@ -95,7 +101,7 @@ class FieldComparisonGroup:
         return QueryLiteral(queries), all_variables
 
 
-class ComparisonBase(ABC):
+class ComparisonBase(ABC, Generic[J]):
     def __eq__(self, other):  # type: ignore
         if other is None:
             return self._compare(ComparisonType.IS, None)
@@ -124,8 +130,25 @@ class ComparisonBase(ABC):
     def not_in(self, other) -> bool:
         return self._compare(ComparisonType.NOT_IN, other)  # type: ignore
 
-    def like(self, other) -> bool:
+    def like(
+        self: "ComparisonBase[str] | ComparisonBase[str | None]", other: str
+    ) -> bool:
         return self._compare(ComparisonType.LIKE, other)  # type: ignore
+
+    def not_like(
+        self: "ComparisonBase[str] | ComparisonBase[str | None]", other: str
+    ) -> bool:
+        return self._compare(ComparisonType.NOT_LIKE, other)  # type: ignore
+
+    def ilike(
+        self: "ComparisonBase[str] | ComparisonBase[str | None]", other: str
+    ) -> bool:
+        return self._compare(ComparisonType.ILIKE, other)  # type: ignore
+
+    def not_ilike(
+        self: "ComparisonBase[str] | ComparisonBase[str | None]", other: str
+    ) -> bool:
+        return self._compare(ComparisonType.NOT_ILIKE, other)  # type: ignore
 
     def _compare(self, comparison: ComparisonType, other: Any) -> FieldComparison[Self]:
         return FieldComparison(left=self, comparison=comparison, right=other)
