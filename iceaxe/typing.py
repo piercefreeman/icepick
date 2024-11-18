@@ -8,6 +8,7 @@ from typing import (
     Any,
     Type,
     TypeGuard,
+    TypeVar,
 )
 from uuid import UUID
 
@@ -27,6 +28,8 @@ PRIMITIVE_WRAPPER_TYPES = list[PRIMITIVE_TYPES] | PRIMITIVE_TYPES
 DATE_TYPES = datetime | date | time | timedelta
 JSON_WRAPPER_FALLBACK = list[Any] | dict[Any, Any]
 
+T = TypeVar("T")
+
 
 def is_base_table(obj: Any) -> TypeGuard[type[TableBase]]:
     from iceaxe.base import TableBase
@@ -34,7 +37,7 @@ def is_base_table(obj: Any) -> TypeGuard[type[TableBase]]:
     return isclass(obj) and issubclass(obj, TableBase)
 
 
-def is_column(obj: Any) -> TypeGuard[DBFieldClassDefinition]:
+def is_column(obj: T) -> TypeGuard[DBFieldClassDefinition[T]]:
     from iceaxe.base import DBFieldClassDefinition
 
     return isinstance(obj, DBFieldClassDefinition)
@@ -64,7 +67,7 @@ def is_function_metadata(obj: Any) -> TypeGuard[FunctionMetadata]:
     return isinstance(obj, FunctionMetadata)
 
 
-def column(obj: Any):
+def column(obj: T) -> DBFieldClassDefinition[T]:
     if not is_column(obj):
         raise ValueError(f"Invalid column: {obj}")
     return obj

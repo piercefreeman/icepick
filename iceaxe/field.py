@@ -4,8 +4,10 @@ from typing import (
     Any,
     Callable,
     Concatenate,
+    Generic,
     ParamSpec,
     Type,
+    TypeVar,
     Unpack,
     cast,
 )
@@ -139,7 +141,10 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
     return func
 
 
-class DBFieldClassDefinition(ComparisonBase):
+T = TypeVar("T")
+
+
+class DBFieldClassDefinition(Generic[T], ComparisonBase[T]):
     root_model: Type["TableBase"]
     key: str
     field_definition: DBFieldInfo
