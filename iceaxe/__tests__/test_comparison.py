@@ -174,7 +174,7 @@ def test_comparison_with_different_types(db_field: DBFieldClassDefinition, value
 #
 
 
-def test_typehint_ilike():
+def test_typehint_like():
     class UserDemo(TableBase):
         id: int
         value_str: str
@@ -187,9 +187,58 @@ def test_typehint_ilike():
     assert_type(int_col, DBFieldClassDefinition[int])
 
     assert_type(str_col.ilike("test"), bool)
+    assert_type(str_col.not_ilike("test"), bool)
+    assert_type(str_col.like("test"), bool)
+    assert_type(str_col.not_like("test"), bool)
 
     with pyright_raises(
         "reportAttributeAccessIssue",
         matches=re_compile('Cannot access attribute "ilike"'),
     ):
         int_col.ilike(5)  # type: ignore
+
+    with pyright_raises(
+        "reportAttributeAccessIssue",
+        matches=re_compile('Cannot access attribute "ilike"'),
+    ):
+        int_col.not_ilike(5)  # type: ignore
+
+    with pyright_raises(
+        "reportAttributeAccessIssue",
+        matches=re_compile('Cannot access attribute "ilike"'),
+    ):
+        int_col.like(5)  # type: ignore
+
+    with pyright_raises(
+        "reportAttributeAccessIssue",
+        matches=re_compile('Cannot access attribute "ilike"'),
+    ):
+        int_col.not_like(5)  # type: ignore
+
+
+def test_typehint_in():
+    class UserDemo(TableBase):
+        id: int
+        value_str: str
+        value_int: int
+
+    str_col = column(UserDemo.value_str)
+    int_col = column(UserDemo.value_int)
+
+    assert_type(str_col.in_(["test"]), bool)
+    assert_type(int_col.in_([5]), bool)
+
+    assert_type(str_col.not_in(["test"]), bool)
+    assert_type(int_col.not_in([5]), bool)
+
+    with pyright_raises(
+        "reportArgumentType",
+        matches=re_compile('cannot be assigned to parameter "other"'),
+    ):
+        str_col.in_(["test", 5])  # type: ignore
+
+    with pyright_raises(
+        "reportArgumentType",
+        matches=re_compile('cannot be assigned to parameter "other"'),
+    ):
+        str_col.not_in(["test", 5])  # type: ignore
