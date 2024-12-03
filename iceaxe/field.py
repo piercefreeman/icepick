@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 P = ParamSpec("P")
 
+_Unset: Any = PydanticUndefined
+
 
 class DBFieldInputs(_FieldInfoInputs, total=False):
     primary_key: bool
@@ -116,11 +118,16 @@ def __get_db_field(_: Callable[Concatenate[Any, P], Any] = PydanticField):  # ty
         index: bool = False,
         check_expression: str | None = None,
         is_json: bool = False,
-        default: Any = PydanticUndefined,
+        default: Any = _Unset,
+        default_factory: (
+            Callable[[], Any] | Callable[[dict[str, Any]], Any] | None
+        ) = _Unset,
         *args: P.args,
         **kwargs: P.kwargs,
     ):
-        raw_field = PydanticField(default=default, **kwargs)  # type: ignore
+        raw_field = PydanticField(
+            default=default, default_factory=default_factory, **kwargs
+        )  # type: ignore
 
         # The Any request is required for us to be able to assign fields to any
         # arbitrary type, like `value: str = Field()`

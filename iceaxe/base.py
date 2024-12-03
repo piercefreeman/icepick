@@ -34,8 +34,8 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         mcs._cached_args[cls] = raw_kwargs
 
         # If we have already set the class's fields, we should wrap them
-        if hasattr(cls, "model_fields"):
-            cls.model_fields = {
+        if hasattr(cls, "__pydantic_fields__"):
+            cls.__pydantic_fields__ = {
                 field: info
                 if isinstance(info, DBFieldInfo)
                 else DBFieldInfo.extend_field(
@@ -97,6 +97,14 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
                 return cls._cached_args[origin_model].get(key, default)
 
         return default
+
+    @property
+    def model_fields(self) -> dict[str, DBFieldInfo]:  # type: ignore
+        # model_fields must be reimplemented in our custom metaclass, otherwise
+        # clients will get the super typehinting signature when they try
+        # to access Model.model_fields. This overrides the ClassVar typehint
+        # that's placed in the TableBase itself.
+        return super().model_fields  # type: ignore
 
 
 class UniqueConstraint(BaseModel):
