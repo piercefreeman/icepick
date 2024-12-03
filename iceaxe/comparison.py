@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Generic, Self, TypeVar
+from typing import Any, Generic, Self, Sequence, TypeVar
 
 from iceaxe.queries_str import QueryElementBase, QueryLiteral
 from iceaxe.typing import is_column, is_comparison, is_comparison_group
@@ -124,10 +124,10 @@ class ComparisonBase(ABC, Generic[J]):
     def __ge__(self, other):
         return self._compare(ComparisonType.GE, other)
 
-    def in_(self, other) -> bool:
+    def in_(self, other: Sequence[J]) -> bool:
         return self._compare(ComparisonType.IN, other)  # type: ignore
 
-    def not_in(self, other) -> bool:
+    def not_in(self, other: Sequence[J]) -> bool:
         return self._compare(ComparisonType.NOT_IN, other)  # type: ignore
 
     def like(
