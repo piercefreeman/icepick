@@ -34,8 +34,8 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         mcs._cached_args[cls] = raw_kwargs
 
         # If we have already set the class's fields, we should wrap them
-        if hasattr(cls, "model_fields"):
-            cls.model_fields = {
+        if hasattr(cls, "__pydantic_fields__"):
+            cls.__pydantic_fields__ = {
                 field: info
                 if isinstance(info, DBFieldInfo)
                 else DBFieldInfo.extend_field(
