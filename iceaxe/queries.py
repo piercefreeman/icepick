@@ -133,6 +133,13 @@ class QueryBuilder(Generic[P, QueryType]):
 
     @overload
     def select(
+        # TypeVarTuples only match the typing of one-or-more elements, so we also
+        # need a overloaded signature for 3 elements.
+        self, fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]]
+    ) -> QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
         self, fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
     ) -> QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]: ...
 
@@ -144,12 +151,14 @@ class QueryBuilder(Generic[P, QueryType]):
             | Type[T]
             | tuple[T | Type[T]]
             | tuple[T | Type[T], T2 | Type[T2]]
+            | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]]
             | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
         ),
     ) -> (
         QueryBuilder[T, Literal["SELECT"]]
         | QueryBuilder[tuple[T], Literal["SELECT"]]
         | QueryBuilder[tuple[T, T2], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]
         | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
     ):
         """
