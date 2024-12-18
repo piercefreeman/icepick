@@ -33,13 +33,78 @@ TableType = TypeVar("TableType", bound=TableBase)
 
 
 class DBConnection:
+    """
+    Core class for all ORM actions against a PostgreSQL database. Provides high-level methods
+    for executing queries and managing database transactions.
+
+    The DBConnection wraps an asyncpg Connection and provides ORM functionality for:
+    - Executing SELECT/INSERT/UPDATE/DELETE queries
+    - Managing transactions
+    - Inserting, updating, and deleting model instances
+    - Refreshing model instances from the database
+
+    ```python {{sticky: True}}
+    # Create a connection
+    conn = DBConnection(
+        await asyncpg.connect(
+            host="localhost",
+            port=5432,
+            user="db_user",
+            password="yoursecretpassword",
+            database="your_db",
+        )
+    )
+
+    # Use with models
+    class User(TableBase):
+        id: int = Field(primary_key=True)
+        name: str
+        email: str
+
+    # Insert data
+    user = User(name="Alice", email="alice@example.com")
+    await conn.insert([user])
+
+    # Query data
+    users = await conn.exec(
+        select(User)
+        .where(User.name == "Alice")
+    )
+
+    # Update data
+    user.email = "newemail@example.com"
+    await conn.update([user])
+    ```
+    """
+
     def __init__(self, conn: asyncpg.Connection):
+        """
+        Initialize a new database connection wrapper.
+
+        :param conn: An asyncpg Connection instance to wrap
+        """
         self.conn = conn
         self.obj_to_primary_key: dict[str, str | None] = {}
         self.in_transaction = False
 
     @asynccontextmanager
     async def transaction(self):
+        """
+        Context manager for managing database transactions. Ensures that a series of database
+        operations are executed atomically.
+
+        ```python {{sticky: True}}
+        async with conn.transaction():
+            # All operations here are executed in a transaction
+            user = User(name="Alice", email="alice@example.com")
+            await conn.insert([user])
+
+            post = Post(title="Hello", user_id=user.id)
+            await conn.insert([post])
+
+            # If any operation fails, all changes are rolled back
+        ```
+        """
         self.in_transaction = True
         async with self.conn.transaction():
             try:
@@ -66,18 +131,42 @@ class DBConnection:
         | QueryBuilder[T, Literal["UPDATE"]]
         | QueryBuilder[T, Literal["DELETE"]],
     ) -> list[T] | None:
+        """
+        Execute a query built with QueryBuilder and return the results.
+
+        ```python {{sticky: True}}
+        # Select query
+        users = await conn.exec(
+            select(User)
+            .where(User.age >= 18)
+            .order_by(User.name)
+        )
+
+        # Select with joins and aggregates
+        results = await conn.exec(
+            select((User.name, func.count(Order.id)))
+            .join(Order, Order.user_id == User.id)
+            .group_by(User.name)
+            .having(func.count(Order.id) > 5)
+        )
+
+        # Delete query
+        await conn.exec(
+            delete(User)
+            .where(User.is_active == False)
+        )
+        ```
+
+        :param query: A QueryBuilder instance representing the query to execute
+        :return: For SELECT queries, returns a list of results. For other queries, returns None
+
+        """
         sql_text, variables = query.build()
         LOGGER.debug(f"Executing query: {sql_text} with variables: {variables}")
         values = await self.conn.fetch(sql_text, *variables)
 
         if query.query_type == "SELECT":
-            # We now need to cast any desired model as the models
-            # instead of a blob of fields
-            # Field selections should already be in the proper type
-            result_all: list[Any] = []
-
-            # Pre-cache the select types, so we don't have to the runtime inspection of types
-            # for each value
+            # Pre-cache the select types for better performance
             select_types = [
                 (
                     is_base_table(select_raw),
@@ -93,6 +182,27 @@ class DBConnection:
         return None
 
     async def insert(self, objects: Sequence[TableBase]):
+        """
+        Insert one or more model instances into the database. If the model has an auto-incrementing
+        primary key, it will be populated on the instances after insertion.
+
+        ```python {{sticky: True}}
+        # Insert a single object
+        user = User(name="Alice", email="alice@example.com")
+        await conn.insert([user])
+        print(user.id)  # Auto-populated primary key
+
+        # Insert multiple objects
+        users = [
+            User(name="Bob", email="bob@example.com"),
+            User(name="Charlie", email="charlie@example.com")
+        ]
+        await conn.insert(users)
+        ```
+
+        :param objects: A sequence of TableBase instances to insert
+
+        """
         if not objects:
             return
 
@@ -154,13 +264,36 @@ class DBConnection:
     ) -> list[tuple[T, *Ts]] | None:
         """
         Performs an upsert (INSERT ... ON CONFLICT DO UPDATE) operation for the given objects.
+        This is useful when you want to insert records but update them if they already exist.
+
+        ```python {{sticky: True}}
+        # Simple upsert based on email
+        users = [
+            User(email="alice@example.com", name="Alice"),
+            User(email="bob@example.com", name="Bob")
+        ]
+        await conn.upsert(
+            users,
+            conflict_fields=(User.email,),
+            update_fields=(User.name,)
+        )
+
+        # Upsert with returning values
+        results = await conn.upsert(
+            users,
+            conflict_fields=(User.email,),
+            update_fields=(User.name,),
+            returning_fields=(User.id, User.email)
+        )
+        for user_id, email in results:
+            print(f"Upserted user {email} with ID {user_id}")
+        ```
 
         :param objects: Sequence of TableBase objects to upsert
         :param conflict_fields: Fields to check for conflicts (ON CONFLICT)
         :param update_fields: Fields to update on conflict. If None, updates all non-excluded fields
         :param returning_fields: Fields to return after the operation. If None, returns nothing
-
-        :return List of dictionaries containing the returned fields if returning_fields is specified
+        :return: List of tuples containing the returned fields if returning_fields is specified
 
         """
         if not objects:
@@ -238,6 +371,25 @@ class DBConnection:
         return results if returning_fields_cols else None
 
     async def update(self, objects: Sequence[TableBase]):
+        """
+        Update one or more model instances in the database. Only modified attributes will be updated.
+
+        ```python {{sticky: True}}
+        # Update a single object
+        user = await conn.exec(select(User).where(User.id == 1))
+        user.name = "New Name"
+        await conn.update([user])
+
+        # Update multiple objects
+        users = await conn.exec(select(User).where(User.age < 18))
+        for user in users:
+            user.is_minor = True
+        await conn.update(users)
+        ```
+
+        :param objects: A sequence of TableBase instances to update
+
+        """
         if not objects:
             return
 
@@ -273,6 +425,24 @@ class DBConnection:
                     obj.clear_modified_attributes()
 
     async def delete(self, objects: Sequence[TableBase]):
+        """
+        Delete one or more model instances from the database.
+
+        ```python {{sticky: True}}
+        # Delete a single object
+        user = await conn.exec(select(User).where(User.id == 1))
+        await conn.delete([user])
+
+        # Delete multiple objects
+        inactive_users = await conn.exec(
+            select(User).where(User.last_login < datetime.now() - timedelta(days=90))
+        )
+        await conn.delete(inactive_users)
+        ```
+
+        :param objects: A sequence of TableBase instances to delete
+
+        """
         async with self._ensure_transaction():
             for model, model_objects in self._aggregate_models_by_table(objects):
                 table_name = QueryIdentifier(model.get_table_name())
@@ -290,6 +460,25 @@ class DBConnection:
                     await self.conn.execute(query, getattr(obj, primary_key))
 
     async def refresh(self, objects: Sequence[TableBase]):
+        """
+        Refresh one or more model instances from the database, updating their attributes
+        with the current database values.
+
+        ```python {{sticky: True}}
+        # Refresh a single object
+        user = await conn.exec(select(User).where(User.id == 1))
+        # ... some time passes, database might have changed
+        await conn.refresh([user])  # User now has current database values
+
+        # Refresh multiple objects
+        users = await conn.exec(select(User).where(User.department == "Sales"))
+        # ... after some time
+        await conn.refresh(users)  # All users now have current values
+        ```
+
+        :param objects: A sequence of TableBase instances to refresh
+
+        """
         for model, model_objects in self._aggregate_models_by_table(objects):
             table_name = QueryIdentifier(model.get_table_name())
             primary_key = self._get_primary_key(model)
@@ -332,11 +521,6 @@ class DBConnection:
         This method provides a convenient way to fetch a single record from the database using its primary key.
         It automatically constructs and executes a SELECT query with a WHERE clause matching the primary key.
 
-        :param model: The model class to query (must be a subclass of TableBase)
-        :param primary_key_value: The value of the primary key to look up
-        :return: The model instance if found, None if no record matches the primary key
-        :raises ValueError: If the model has no primary key defined
-
         ```python {{sticky: True}}
         class User(TableBase):
             id: int = Field(primary_key=True)
@@ -350,6 +534,12 @@ class DBConnection:
         else:
             print("User not found")
         ```
+
+        :param model: The model class to query (must be a subclass of TableBase)
+        :param primary_key_value: The value of the primary key to look up
+        :return: The model instance if found, None if no record matches the primary key
+        :raises ValueError: If the model has no primary key defined
+
         """
         primary_key = self._get_primary_key(model)
         if not primary_key:
@@ -365,6 +555,12 @@ class DBConnection:
         return results[0] if results else None
 
     def _aggregate_models_by_table(self, objects: Sequence[TableBase]):
+        """
+        Group model instances by their table class for batch operations.
+
+        :param objects: Sequence of TableBase instances to group
+        :return: Iterator of (model_class, list_of_instances) pairs
+        """
         objects_by_class: defaultdict[Type[TableBase], list[TableBase]] = defaultdict(
             list
         )
@@ -374,6 +570,12 @@ class DBConnection:
         return objects_by_class.items()
 
     def _get_primary_key(self, obj: Type[TableBase]) -> str | None:
+        """
+        Get the primary key field name for a model class, with caching.
+
+        :param obj: The model class to get the primary key for
+        :return: The name of the primary key field, or None if no primary key exists
+        """
         table_name = obj.get_table_name()
         if table_name not in self.obj_to_primary_key:
             primary_key = [
@@ -387,10 +589,9 @@ class DBConnection:
     @asynccontextmanager
     async def _ensure_transaction(self):
         """
-        For database modifications like INSERT and UPDATE, we need to ensure that we're within
-        a transaction so. This helper function will allow us to create a transaction only if
-        the client has not already created one.
-
+        Context manager that ensures operations are executed within a transaction.
+        If no transaction is active, creates a new one for the duration of the context.
+        If a transaction is already active, uses the existing transaction.
         """
         if not self.in_transaction:
             async with self.transaction():

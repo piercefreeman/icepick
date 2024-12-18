@@ -185,13 +185,6 @@ class QueryBuilder(Generic[P, QueryType]):
         """
         Creates a SELECT query to fetch data from the database.
 
-        :param fields: The fields to select. Can be:
-                      - A single field (e.g., User.id)
-                      - A model class (e.g., User)
-                      - A tuple of fields (e.g., (User.id, User.name))
-                      - A tuple of model classes (e.g., (User, Post))
-        :return: A QueryBuilder instance configured for SELECT operations
-
         ```python {{sticky: True}}
         # Select all fields from User
         query = QueryBuilder().select(User)
@@ -208,6 +201,14 @@ class QueryBuilder(Generic[P, QueryType]):
         # Select from multiple tables
         query = QueryBuilder().select((User, Order))
         ```
+
+        :param fields: The fields to select. Can be:
+                      - A single field (e.g., User.id)
+                      - A model class (e.g., User)
+                      - A tuple of fields (e.g., (User.id, User.name))
+                      - A tuple of model classes (e.g., (User, Post))
+        :return: A QueryBuilder instance configured for SELECT operations
+
         """
         all_fields: tuple[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...
@@ -297,9 +298,6 @@ class QueryBuilder(Generic[P, QueryType]):
         Adds WHERE conditions to filter the query results. Multiple conditions are combined with AND.
         For OR conditions, use the `or_` function.
 
-        :param conditions: One or more boolean conditions using field comparisons
-        :return: The QueryBuilder instance for method chaining
-
         ```python {{sticky: True}}
         # Simple condition
         query = (
@@ -333,6 +331,10 @@ class QueryBuilder(Generic[P, QueryType]):
             )
         )
         ```
+
+        :param conditions: One or more boolean conditions using field comparisons
+        :return: The QueryBuilder instance for method chaining
+
         """
         # During typechecking these seem like bool values, since they're the result
         # of the comparison set. But at runtime they will be the whole object that
@@ -350,10 +352,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def order_by(self, field: Any, direction: OrderDirection = "ASC"):
         """
         Adds an ORDER BY clause to sort the query results.
-
-        :param field: The field to sort by (must be a column)
-        :param direction: The sort direction, either "ASC" or "DESC"
-        :return: The QueryBuilder instance for method chaining
 
         ```python {{sticky: True}}
         # Simple ascending sort
@@ -378,6 +376,11 @@ class QueryBuilder(Generic[P, QueryType]):
             .order_by(User.first_name, "ASC")
         )
         ```
+
+        :param field: The field to sort by (must be a column)
+        :param direction: The sort direction, either "ASC" or "DESC"
+        :return: The QueryBuilder instance for method chaining
+
         """
         if not is_column(field):
             raise ValueError(f"Invalid order by field: {field}")
@@ -390,11 +393,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def join(self, table: Type[TableBase], on: bool, join_type: JoinType = "INNER"):
         """
         Adds a JOIN clause to combine data from multiple tables.
-
-        :param table: The table to join with
-        :param on: The join condition (e.g., Table1.id == Table2.table1_id)
-        :param join_type: The type of join: "INNER", "LEFT", "RIGHT", or "FULL"
-        :return: The QueryBuilder instance for method chaining
 
         ```python {{sticky: True}}
         # Inner join
@@ -420,6 +418,12 @@ class QueryBuilder(Generic[P, QueryType]):
             .join(Product, Product.id == Order.product_id)
         )
         ```
+
+        :param table: The table to join with
+        :param on: The join condition (e.g., Table1.id == Table2.table1_id)
+        :param join_type: The type of join: "INNER", "LEFT", "RIGHT", or "FULL"
+        :return: The QueryBuilder instance for method chaining
+
         """
         if not is_comparison(on):
             raise ValueError(
@@ -452,9 +456,6 @@ class QueryBuilder(Generic[P, QueryType]):
         """
         Limits the number of rows returned by the query.
 
-        :param value: Maximum number of rows to return
-        :return: The QueryBuilder instance for method chaining
-
         ```python {{sticky: True}}
         # Basic limit
         query = (
@@ -472,6 +473,10 @@ class QueryBuilder(Generic[P, QueryType]):
             .offset(40)  # Skip first 40 rows
         )
         ```
+
+        :param value: Maximum number of rows to return
+        :return: The QueryBuilder instance for method chaining
+
         """
         self.limit_value = value
         return self
@@ -480,9 +485,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def offset(self, value: int):
         """
         Skips the specified number of rows before returning results.
-
-        :param value: Number of rows to skip
-        :return: The QueryBuilder instance for method chaining
 
         ```python {{sticky: True}}
         # Basic offset
@@ -503,6 +505,10 @@ class QueryBuilder(Generic[P, QueryType]):
             .offset((page_number - 1) * page_size)
         )
         ```
+
+        :param value: Number of rows to skip
+        :return: The QueryBuilder instance for method chaining
+
         """
         self.offset_value = value
         return self
@@ -511,9 +517,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def group_by(self, *fields: Any):
         """
         Groups the results by specified fields, typically used with aggregate functions.
-
-        :param fields: One or more fields to group by
-        :return: The QueryBuilder instance for method chaining
 
         ```python {{sticky: True}}
         # Simple grouping with count
@@ -543,6 +546,10 @@ class QueryBuilder(Generic[P, QueryType]):
             .having(func.count(User.id) > 5)
         )
         ```
+
+        :param fields: One or more fields to group by
+        :return: The QueryBuilder instance for method chaining
+
         """
         valid_fields: list[DBFieldClassDefinition] = []
 
@@ -558,9 +565,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def having(self, *conditions: bool):
         """
         Adds HAVING conditions to filter grouped results based on aggregate values.
-
-        :param conditions: One or more conditions using aggregate functions
-        :return: The QueryBuilder instance for method chaining
 
         ```python {{sticky: True}}
         # Filter groups by count
@@ -586,6 +590,10 @@ class QueryBuilder(Generic[P, QueryType]):
             )
         )
         ```
+
+        :param conditions: One or more conditions using aggregate functions
+        :return: The QueryBuilder instance for method chaining
+
         """
         valid_conditions: list[FieldComparison] = []
 
@@ -602,9 +610,6 @@ class QueryBuilder(Generic[P, QueryType]):
         """
         Adds a DISTINCT ON clause to remove duplicate rows based on specified fields.
 
-        :param fields: Fields to check for distinctness
-        :return: The QueryBuilder instance for method chaining
-
         ```python {{sticky: True}}
         # Get distinct user names
         query = (
@@ -620,6 +625,10 @@ class QueryBuilder(Generic[P, QueryType]):
             .distinct_on(User.country, User.city)
         )
         ```
+
+        :param fields: Fields to check for distinctness
+        :return: The QueryBuilder instance for method chaining
+
         """
         valid_fields: list[QueryLiteral] = []
 
@@ -636,10 +645,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def text(self, query: str, *variables: Any):
         """
         Uses a raw SQL query instead of the query builder.
-
-        :param query: Raw SQL query string with $1, $2, etc. as parameter placeholders
-        :param variables: Values for the query parameters
-        :return: The QueryBuilder instance for method chaining
 
         ```python {{sticky: True}}
         # Simple raw query
@@ -665,6 +670,11 @@ class QueryBuilder(Generic[P, QueryType]):
             )
         )
         ```
+
+        :param query: Raw SQL query string with $1, $2, etc. as parameter placeholders
+        :param variables: Values for the query parameters
+        :return: The QueryBuilder instance for method chaining
+
         """
         self.text_query = query
         self.text_variables = list(variables)
@@ -673,8 +683,6 @@ class QueryBuilder(Generic[P, QueryType]):
     def build(self) -> tuple[str, list[Any]]:
         """
         Builds and returns the final SQL query string and parameter values.
-
-        :return: A tuple of (query_string, parameter_list)
 
         ```python {{sticky: True}}
         # Build a query
@@ -691,6 +699,9 @@ class QueryBuilder(Generic[P, QueryType]):
         async with conn.transaction():
             result = await conn.execute(*query.build())
         ```
+
+        :return: A tuple of (query_string, parameter_list)
+
         """
         if self.text_query:
             return self.text_query, self.text_variables
@@ -794,9 +805,6 @@ def and_(
     Combines multiple conditions with logical AND.
     All conditions must be true for the group to be true.
 
-    :param conditions: Variable number of conditions to combine
-    :return: A field comparison group object
-
     ```python {{sticky: True}}
     query = select(User).where(
         and_(
@@ -806,6 +814,10 @@ def and_(
         )
     )
     ```
+
+    :param conditions: Variable number of conditions to combine
+    :return: A field comparison group object
+
     """
     field_comparisons: list[FieldComparison | FieldComparisonGroup] = []
     for condition in conditions:
@@ -825,9 +837,6 @@ def or_(
     Combines multiple conditions with logical OR.
     At least one condition must be true for the group to be true.
 
-    :param conditions: Variable number of conditions to combine
-    :return: A field comparison group object
-
     ```python {{sticky: True}}
     query = select(User).where(
         or_(
@@ -839,6 +848,10 @@ def or_(
         )
     )
     ```
+
+    :param conditions: Variable number of conditions to combine
+    :return: A field comparison group object
+
     """
     field_comparisons: list[FieldComparison | FieldComparisonGroup] = []
     for condition in conditions:
@@ -898,12 +911,6 @@ def select(
     Creates a SELECT query to fetch data from the database. This is a shortcut function that creates
     and returns a new QueryBuilder instance.
 
-    :param fields: The fields to select. Can be:
-                  - A single field or model class (e.g., User.id or User)
-                  - A tuple of fields (e.g., (User.id, User.name))
-                  - A tuple of model classes (e.g., (User, Post))
-    :return: A QueryBuilder instance configured for SELECT operations
-
     ```python {{sticky: True}}
     # Select all fields from User
     users = await conn.execute(select(User))
@@ -919,6 +926,13 @@ def select(
         .limit(10)
     )
     ```
+
+    :param fields: The fields to select. Can be:
+                  - A single field or model class (e.g., User.id or User)
+                  - A tuple of fields (e.g., (User.id, User.name))
+                  - A tuple of model classes (e.g., (User, Post))
+    :return: A QueryBuilder instance configured for SELECT operations
+
     """
     return QueryBuilder().select(fields)
 
@@ -927,9 +941,6 @@ def update(model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
     """
     Creates an UPDATE query to modify existing records in the database. This is a shortcut function
     that creates and returns a new QueryBuilder instance.
-
-    :param model: The model class representing the table to update
-    :return: A QueryBuilder instance configured for UPDATE operations
 
     ```python {{sticky: True}}
     # Update all users' status
@@ -947,6 +958,10 @@ def update(model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
         .where(User.email_confirmed == True)
     )
     ```
+
+    :param model: The model class representing the table to update
+    :return: A QueryBuilder instance configured for UPDATE operations
+
     """
     return QueryBuilder().update(model)
 
@@ -955,9 +970,6 @@ def delete(model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
     """
     Creates a DELETE query to remove records from the database. This is a shortcut function
     that creates and returns a new QueryBuilder instance.
-
-    :param model: The model class representing the table to delete from
-    :return: A QueryBuilder instance configured for DELETE operations
 
     ```python {{sticky: True}}
     # Delete inactive users
@@ -977,5 +989,9 @@ def delete(model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
         )
     )
     ```
+
+    :param model: The model class representing the table to delete from
+    :return: A QueryBuilder instance configured for DELETE operations
+
     """
     return QueryBuilder().delete(model)
