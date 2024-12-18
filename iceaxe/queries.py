@@ -135,7 +135,8 @@ class QueryBuilder(Generic[P, QueryType]):
     def select(
         # TypeVarTuples only match the typing of one-or-more elements, so we also
         # need a overloaded signature for 3 elements.
-        self, fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]]
+        self,
+        fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]],
     ) -> QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]: ...
 
     @overload
@@ -219,16 +220,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 self.select_fields.append(literal)
                 self.select_raw.append(field)
             elif is_base_table(field):
-                table_token = QueryIdentifier(field.get_table_name())
-
-                for field_name in field.get_client_fields():
-                    field_token = QueryIdentifier(field_name)
-                    return_field = QueryIdentifier(
-                        f"{field.get_table_name()}_{field_name}"
-                    )
-                    self.select_fields.append(
-                        QueryLiteral(f"{table_token}.{field_token} as {return_field}")
-                    )
+                self.select_fields.append(field.select_fields())
                 self.select_raw.append(field)
             elif is_function_metadata(field):
                 field.local_name = f"aggregate_{self.select_aggregate_count}"
