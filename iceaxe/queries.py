@@ -90,6 +90,25 @@ class QueryBuilder(Generic[P, QueryType]):
     be transparent to the user but is noted in case you see different types through
     runtime inspection than you see during the typehints.
 
+    ```python {{sticky: True}}
+    # Basic SELECT query
+    query = (
+        QueryBuilder()
+        .select(User)
+        .where(User.is_active == True)
+        .order_by(User.created_at, "DESC")
+    )
+
+    # Complex query with joins and aggregates
+    query = (
+        QueryBuilder()
+        .select((User.name, func.count(Order.id)))
+        .join(Order, Order.user_id == User.id)
+        .where(Order.status == "completed")
+        .group_by(User.name)
+        .having(func.count(Order.id) > 5)
+    )
+    ```
     """
 
     def __init__(self):
@@ -164,14 +183,31 @@ class QueryBuilder(Generic[P, QueryType]):
         | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
     ):
         """
-        Creates a new select query for the given fields. Returns the same
-        QueryBuilder that is now flagged as a SELECT query.
+        Creates a SELECT query to fetch data from the database.
 
-        Our select @overrides here support the required conversion from a table class (which
-        is specified as raw input) to individual instances which are returned. This is only
-        relevant for table classes since field selections should be 1:1 mirrored from the
-        request field annotation to the response type.
+        :param fields: The fields to select. Can be:
+                      - A single field (e.g., User.id)
+                      - A model class (e.g., User)
+                      - A tuple of fields (e.g., (User.id, User.name))
+                      - A tuple of model classes (e.g., (User, Post))
+        :return: A QueryBuilder instance configured for SELECT operations
 
+        ```python {{sticky: True}}
+        # Select all fields from User
+        query = QueryBuilder().select(User)
+
+        # Select specific fields
+        query = QueryBuilder().select((User.id, User.name))
+
+        # Select with aggregation
+        query = QueryBuilder().select((
+            User.name,
+            func.count(Order.id).as_("order_count")
+        ))
+
+        # Select from multiple tables
+        query = QueryBuilder().select((User, Order))
+        ```
         """
         all_fields: tuple[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...
@@ -258,9 +294,45 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def where(self, *conditions: bool):
         """
-        Adds a where condition to the query. The conditions are combined with
-        AND. If you need to use OR, you can use the `and_` and `or_` constructors.
+        Adds WHERE conditions to filter the query results. Multiple conditions are combined with AND.
+        For OR conditions, use the `or_` function.
 
+        :param conditions: One or more boolean conditions using field comparisons
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Simple condition
+        query = (
+            QueryBuilder()
+            .select(User)
+            .where(User.age >= 18)
+        )
+
+        # Multiple conditions (AND)
+        query = (
+            QueryBuilder()
+            .select(User)
+            .where(
+                User.age >= 18,
+                User.is_active == True
+            )
+        )
+
+        # Complex conditions with AND/OR
+        query = (
+            QueryBuilder()
+            .select(User)
+            .where(
+                and_(
+                    User.age >= 18,
+                    or_(
+                        User.role == "admin",
+                        User.permissions.contains("manage_users")
+                    )
+                )
+            )
+        )
+        ```
         """
         # During typechecking these seem like bool values, since they're the result
         # of the comparison set. But at runtime they will be the whole object that
@@ -277,11 +349,35 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def order_by(self, field: Any, direction: OrderDirection = "ASC"):
         """
-        Adds an order by clause to the query. The field must be a column.
+        Adds an ORDER BY clause to sort the query results.
 
-        :param field: The field to order by.
-        :param direction: The direction to order by, either ASC or DESC.
+        :param field: The field to sort by (must be a column)
+        :param direction: The sort direction, either "ASC" or "DESC"
+        :return: The QueryBuilder instance for method chaining
 
+        ```python {{sticky: True}}
+        # Simple ascending sort
+        query = (
+            QueryBuilder()
+            .select(User)
+            .order_by(User.created_at)
+        )
+
+        # Descending sort
+        query = (
+            QueryBuilder()
+            .select(User)
+            .order_by(User.created_at, "DESC")
+        )
+
+        # Multiple sort criteria
+        query = (
+            QueryBuilder()
+            .select(User)
+            .order_by(User.last_name, "ASC")
+            .order_by(User.first_name, "ASC")
+        )
+        ```
         """
         if not is_column(field):
             raise ValueError(f"Invalid order by field: {field}")
@@ -293,13 +389,37 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def join(self, table: Type[TableBase], on: bool, join_type: JoinType = "INNER"):
         """
-        Adds a join clause to the query. The `on` parameter should be a comparison
-        between two columns.
+        Adds a JOIN clause to combine data from multiple tables.
 
-        :param table: The table to join.
-        :param on: The condition to join on, like MyTable.column == OtherTable.column.
-        :param join_type: The type of join to perform, either INNER, LEFT, RIGHT, or FULL.
+        :param table: The table to join with
+        :param on: The join condition (e.g., Table1.id == Table2.table1_id)
+        :param join_type: The type of join: "INNER", "LEFT", "RIGHT", or "FULL"
+        :return: The QueryBuilder instance for method chaining
 
+        ```python {{sticky: True}}
+        # Inner join
+        query = (
+            QueryBuilder()
+            .select((User.name, Order.total))
+            .join(Order, Order.user_id == User.id)
+        )
+
+        # Left join
+        query = (
+            QueryBuilder()
+            .select((User.name, func.count(Order.id)))
+            .join(Order, Order.user_id == User.id, "LEFT")
+            .group_by(User.name)
+        )
+
+        # Multiple joins
+        query = (
+            QueryBuilder()
+            .select((User.name, Order.id, Product.name))
+            .join(Order, Order.user_id == User.id)
+            .join(Product, Product.id == Order.product_id)
+        )
+        ```
         """
         if not is_comparison(on):
             raise ValueError(
@@ -330,9 +450,28 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def limit(self, value: int):
         """
-        Limit the number of rows returned by the query. Useful in pagination
-        or in only selecting a subset of the results.
+        Limits the number of rows returned by the query.
 
+        :param value: Maximum number of rows to return
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Basic limit
+        query = (
+            QueryBuilder()
+            .select(User)
+            .limit(10)
+        )
+
+        # Limit with offset for pagination
+        query = (
+            QueryBuilder()
+            .select(User)
+            .order_by(User.created_at, "DESC")
+            .limit(20)
+            .offset(40)  # Skip first 40 rows
+        )
+        ```
         """
         self.limit_value = value
         return self
@@ -340,8 +479,30 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def offset(self, value: int):
         """
-        Offset the number of rows returned by the query.
+        Skips the specified number of rows before returning results.
 
+        :param value: Number of rows to skip
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Basic offset
+        query = (
+            QueryBuilder()
+            .select(User)
+            .offset(10)
+        )
+
+        # Implementing pagination
+        page_size = 20
+        page_number = 3
+        query = (
+            QueryBuilder()
+            .select(User)
+            .order_by(User.created_at, "DESC")
+            .limit(page_size)
+            .offset((page_number - 1) * page_size)
+        )
+        ```
         """
         self.offset_value = value
         return self
@@ -349,10 +510,39 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def group_by(self, *fields: Any):
         """
-        Groups the results of the query by the given fields. This allows
-        you to use aggregation functions in your selection queries. See `func`
-        for the supported aggregation functions.
+        Groups the results by specified fields, typically used with aggregate functions.
 
+        :param fields: One or more fields to group by
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Simple grouping with count
+        query = (
+            QueryBuilder()
+            .select((User.status, func.count(User.id)))
+            .group_by(User.status)
+        )
+
+        # Multiple group by fields
+        query = (
+            QueryBuilder()
+            .select((
+                User.country,
+                User.city,
+                func.count(User.id),
+                func.avg(User.age)
+            ))
+            .group_by(User.country, User.city)
+        )
+
+        # Group by with having
+        query = (
+            QueryBuilder()
+            .select((User.department, func.count(User.id)))
+            .group_by(User.department)
+            .having(func.count(User.id) > 5)
+        )
+        ```
         """
         valid_fields: list[DBFieldClassDefinition] = []
 
@@ -367,10 +557,35 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def having(self, *conditions: bool):
         """
-        Require the result of an aggregation query like func.sum(MyTable.column)
-        to be within a certain range. This is similar to the `where` clause but
-        for aggregation results.
+        Adds HAVING conditions to filter grouped results based on aggregate values.
 
+        :param conditions: One or more conditions using aggregate functions
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Filter groups by count
+        query = (
+            QueryBuilder()
+            .select((User.department, func.count(User.id)))
+            .group_by(User.department)
+            .having(func.count(User.id) > 10)
+        )
+
+        # Multiple having conditions
+        query = (
+            QueryBuilder()
+            .select((
+                User.department,
+                func.count(User.id),
+                func.avg(User.salary)
+            ))
+            .group_by(User.department)
+            .having(
+                func.count(User.id) >= 5,
+                func.avg(User.salary) > 50000
+            )
+        )
+        ```
         """
         valid_conditions: list[FieldComparison] = []
 
@@ -385,9 +600,26 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def distinct_on(self, *fields: Any):
         """
-        Adds a DISTINCT ON clause to the query. This will remove duplicate rows
-        from the result set.
+        Adds a DISTINCT ON clause to remove duplicate rows based on specified fields.
 
+        :param fields: Fields to check for distinctness
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Get distinct user names
+        query = (
+            QueryBuilder()
+            .select((User.name, User.email))
+            .distinct_on(User.name)
+        )
+
+        # Multiple distinct fields
+        query = (
+            QueryBuilder()
+            .select((User.country, User.city, User.population))
+            .distinct_on(User.country, User.city)
+        )
+        ```
         """
         valid_fields: list[QueryLiteral] = []
 
@@ -403,8 +635,36 @@ class QueryBuilder(Generic[P, QueryType]):
     @allow_branching
     def text(self, query: str, *variables: Any):
         """
-        Override the ORM builder and use a raw SQL query instead.
+        Uses a raw SQL query instead of the query builder.
 
+        :param query: Raw SQL query string with $1, $2, etc. as parameter placeholders
+        :param variables: Values for the query parameters
+        :return: The QueryBuilder instance for method chaining
+
+        ```python {{sticky: True}}
+        # Simple raw query
+        query = (
+            QueryBuilder()
+            .text("SELECT * FROM users WHERE age > $1", 18)
+        )
+
+        # Complex raw query with multiple parameters
+        query = (
+            QueryBuilder()
+            .text(
+                '''
+                SELECT u.name, COUNT(o.id) as order_count
+                FROM users u
+                LEFT JOIN orders o ON o.user_id = u.id
+                WHERE u.created_at > $1
+                GROUP BY u.name
+                HAVING COUNT(o.id) > $2
+                ''',
+                datetime(2023, 1, 1),
+                5
+            )
+        )
+        ```
         """
         self.text_query = query
         self.text_variables = list(variables)
@@ -412,9 +672,25 @@ class QueryBuilder(Generic[P, QueryType]):
 
     def build(self) -> tuple[str, list[Any]]:
         """
-        Builds the query and returns the query string and the variables that
-        should be sent over the wire.
+        Builds and returns the final SQL query string and parameter values.
 
+        :return: A tuple of (query_string, parameter_list)
+
+        ```python {{sticky: True}}
+        # Build a query
+        query = (
+            QueryBuilder()
+            .select(User)
+            .where(User.age > 18)
+        )
+        sql, params = query.build()
+        print(sql)    # SELECT ... FROM users WHERE age > $1
+        print(params) # [18]
+
+        # Execute the built query
+        async with conn.transaction():
+            result = await conn.execute(*query.build())
+        ```
         """
         if self.text_query:
             return self.text_query, self.text_variables
