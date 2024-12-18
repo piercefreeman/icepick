@@ -29,6 +29,8 @@ P = ParamSpec("P")
 T = TypeVar("T")
 Ts = TypeVarTuple("Ts")
 
+TableType = TypeVar("TableType", bound=TableBase)
+
 
 class DBConnection:
     def __init__(self, conn: asyncpg.Connection):
@@ -320,6 +322,51 @@ class DBConnection:
                     LOGGER.error(
                         f"Object {obj} with primary key {obj_id} not found in database"
                     )
+
+    async def get(
+        self, model: Type[TableType], primary_key_value: Any
+    ) -> TableType | None:
+        """
+        Retrieve a single model instance by its primary key value.
+
+        This method provides a convenient way to fetch a single record from the database using its primary key.
+        It automatically constructs and executes a SELECT query with a WHERE clause matching the primary key.
+
+        :param model: The model class to query (must be a subclass of TableBase)
+        :type model: Type[TableType]
+        :param primary_key_value: The value of the primary key to look up
+        :type primary_key_value: Any
+        :return: The model instance if found, None if no record matches the primary key
+        :rtype: TableType | None
+        :raises ValueError: If the model has no primary key defined
+
+        Example:
+        ```python {{sticky: True}}
+        class User(TableBase):
+            id: int = Field(primary_key=True)
+            name: str
+            email: str
+
+        # Fetch a user by ID
+        user = await db_connection.get(User, 1)
+        if user:
+            print(f"Found user: {user.name}")
+        else:
+            print("User not found")
+        ```
+        """
+        primary_key = self._get_primary_key(model)
+        if not primary_key:
+            raise ValueError(
+                f"Model {model} has no primary key, required to GET with ORM objects"
+            )
+
+        query_builder = QueryBuilder()
+        query = query_builder.select(model).where(
+            getattr(model, primary_key) == primary_key_value
+        )
+        results = await self.exec(query)
+        return results[0] if results else None
 
     def _aggregate_models_by_table(self, objects: Sequence[TableBase]):
         objects_by_class: defaultdict[Type[TableBase], list[TableBase]] = defaultdict(

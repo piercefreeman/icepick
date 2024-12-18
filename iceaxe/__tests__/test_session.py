@@ -530,6 +530,28 @@ async def test_refresh(db_connection: DBConnection):
 
 
 @pytest.mark.asyncio
+async def test_get(db_connection: DBConnection):
+    """
+    Test retrieving a single record by primary key using the get method.
+    """
+    # Create a test user
+    user = UserDemo(name="John Doe", email="john@example.com")
+    await db_connection.insert([user])
+    assert user.id is not None
+
+    # Test successful get
+    retrieved_user = await db_connection.get(UserDemo, user.id)
+    assert retrieved_user is not None
+    assert retrieved_user.id == user.id
+    assert retrieved_user.name == "John Doe"
+    assert retrieved_user.email == "john@example.com"
+
+    # Test get with non-existent ID
+    non_existent = await db_connection.get(UserDemo, 9999)
+    assert non_existent is None
+
+
+@pytest.mark.asyncio
 async def test_db_connection_insert_update_enum(db_connection: DBConnection):
     """
     Test that casting enum types with is working for both insert and updates.

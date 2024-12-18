@@ -238,7 +238,3 @@ a simple poetry install. Poetry is set up to create a dynamic `setup.py` based o
 ```bash
 poetry install
 ```
-
-## TODOs
-
-- [ ] Additional documentation with usage examples.
