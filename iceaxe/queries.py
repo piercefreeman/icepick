@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import copy
+from dataclasses import dataclass, field as dataclass_field
 from functools import wraps
 from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, cast, overload
 
@@ -71,6 +72,18 @@ def allow_branching(fn):
     return new_fn
 
 
+@dataclass
+class ForUpdateConfig:
+    """
+    Configuration for FOR UPDATE clause in SELECT queries.
+    """
+
+    nowait: bool = False
+    skip_locked: bool = False
+    of_tables: set[str] = dataclass_field(default_factory=set)
+    conditions_set: bool = False
+
+
 class QueryBuilder(Generic[P, QueryType]):
     """
     The QueryBuilder owns all construction of the SQL string given
@@ -125,6 +138,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.group_by_fields: list[DBFieldClassDefinition] = []
         self.having_conditions: list[FieldComparison] = []
         self.distinct_on_fields: list[QueryLiteral] = []
+        self.for_update_config: ForUpdateConfig = ForUpdateConfig()
 
         # Query specific params
         self.update_values: list[tuple[DBFieldClassDefinition, Any]] = []
@@ -680,6 +694,33 @@ class QueryBuilder(Generic[P, QueryType]):
         self.text_variables = list(variables)
         return self
 
+    @allow_branching
+    def for_update(
+        self,
+        *,
+        nowait: bool = False,
+        skip_locked: bool = False,
+        of: tuple[Type[TableBase], ...] | None = None,
+    ) -> QueryBuilder[P, QueryType]:
+        """
+        Adds FOR UPDATE clause to the query. This is useful for pessimistic locking.
+        Multiple calls will be combined, with the most restrictive options taking precedence.
+
+        :param nowait: If True, adds NOWAIT option
+        :param skip_locked: If True, adds SKIP LOCKED option
+        :param of: Optional tuple of models to lock specific tables
+        :return: QueryBuilder instance
+        """
+        # Combine options, with True taking precedence for flags
+        self.for_update_config.nowait |= nowait
+        self.for_update_config.skip_locked |= skip_locked
+        self.for_update_config.of_tables |= {
+            model.get_table_name() for model in (of or [])
+        }
+
+        self.for_update_config.conditions_set = True
+        return self
+
     def build(self) -> tuple[str, list[Any]]:
         """
         Builds and returns the final SQL query string and parameter values.
@@ -789,6 +830,16 @@ class QueryBuilder(Generic[P, QueryType]):
 
         if self.offset_value is not None:
             query += f" OFFSET {self.offset_value}"
+
+        if self.for_update_config.conditions_set:
+            query += " FOR UPDATE"
+            if self.for_update_config.of_tables:
+                # Sorting is optional for the query itself but used for test consistency
+                query += f" OF {', '.join(sorted(self.for_update_config.of_tables))}"
+            if self.for_update_config.nowait:
+                query += " NOWAIT"
+            elif self.for_update_config.skip_locked:
+                query += " SKIP LOCKED"
 
         return query, variables
 
