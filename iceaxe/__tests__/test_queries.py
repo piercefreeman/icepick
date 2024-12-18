@@ -301,3 +301,72 @@ def test_distinct_on_multiple_fields():
         'SELECT DISTINCT ON ("userdemo"."name", "userdemo"."email") "userdemo"."name", "userdemo"."email" FROM "userdemo"',
         [],
     )
+
+
+def test_for_update_basic():
+    new_query = QueryBuilder().select(UserDemo).for_update()
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE',
+        [],
+    )
+
+
+def test_for_update_nowait():
+    new_query = QueryBuilder().select(UserDemo).for_update(nowait=True)
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE NOWAIT',
+        [],
+    )
+
+
+def test_for_update_skip_locked():
+    new_query = QueryBuilder().select(UserDemo).for_update(skip_locked=True)
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE SKIP LOCKED',
+        [],
+    )
+
+
+def test_for_update_of():
+    new_query = QueryBuilder().select(UserDemo).for_update(of=(UserDemo,))
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE OF userdemo',
+        [],
+    )
+
+
+def test_for_update_multiple_calls():
+    new_query = (
+        QueryBuilder()
+        .select(UserDemo)
+        .for_update(of=(UserDemo,))
+        .for_update(nowait=True)
+    )
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE OF userdemo NOWAIT',
+        [],
+    )
+
+
+def test_for_update_multiple_of():
+    new_query = (
+        QueryBuilder()
+        .select((UserDemo, ArtifactDemo))
+        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id)
+        .for_update(of=(UserDemo,))
+        .for_update(of=(ArtifactDemo,))
+    )
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
+        '"userdemo_name", "userdemo"."email" as "userdemo_email", '
+        '"artifactdemo"."id" as "artifactdemo_id", "artifactdemo"."title" as '
+        '"artifactdemo_title", "artifactdemo"."user_id" as "artifactdemo_user_id" '
+        'FROM "userdemo" INNER JOIN artifactdemo ON "userdemo"."id" = "artifactdemo"."user_id" '
+        "FOR UPDATE OF artifactdemo, userdemo",
+        [],
+    )
