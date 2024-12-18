@@ -39,11 +39,49 @@ class MigrationRevision(MigrationRevisionBase):
 
 class MigrationGenerator:
     """
-    Generate the physical python files that will be used to migrate the database.
+    Generates Python migration files for database schema changes.
+    This class handles the automatic generation of migration code by comparing
+    the current database state with the desired schema defined in code.
 
+    The generator creates both 'up' and 'down' migration methods, allowing for
+    bidirectional schema changes. It automatically handles:
+    - Table creation and deletion
+    - Column additions, modifications, and removals
+    - Constraint management
+    - Type creation and updates
+    - Import tracking for required dependencies
+
+    Example:
+    ```python {{sticky: True}}
+    # Generate a new migration
+    generator = MigrationGenerator()
+    code, revision = await generator.new_migration(
+        down_objects=current_db_state,
+        up_objects=desired_schema,
+        down_revision="previous_migration_id",
+        user_message="Add user preferences table"
+    )
+
+    # The generated code will look like:
+    '''
+    class MigrationRevision(MigrationRevisionBase):
+        up_revision: str = "20240101120000"
+        down_revision: str | None = "previous_migration_id"
+
+        async def up(self, migrator: Migrator):
+            await migrator.actor.add_table(...)
+            await migrator.actor.add_column(...)
+
+        async def down(self, migrator: Migrator):
+            await migrator.actor.drop_table(...)
+    '''
     """
 
     def __init__(self):
+        """
+        Initialize a new MigrationGenerator instance.
+        Sets up the import tracking system and database serializer.
+        """
         self.import_tracker: defaultdict[str, set[str]] = defaultdict(set)
         self.serializer = DatabaseMemorySerializer()
 
@@ -58,6 +96,41 @@ class MigrationGenerator:
         down_revision: str | None,
         user_message: str | None,
     ) -> tuple[str, str]:
+        """
+        Generate a new migration file by comparing two database states.
+
+        :param down_objects_with_dependencies: Current database state with object dependencies
+        :type down_objects_with_dependencies: Sequence[tuple[DBObject, Sequence[DBObject | DBObjectPointer]]]
+        :param up_objects_with_dependencies: Desired database state with object dependencies
+        :type up_objects_with_dependencies: Sequence[tuple[DBObject, Sequence[DBObject | DBObjectPointer]]]
+        :param down_revision: ID of the previous migration this one builds upon
+        :type down_revision: str | None
+        :param user_message: Optional description of the migration's purpose
+        :type user_message: str | None
+        :return: A tuple of (generated migration code, new revision ID)
+        :rtype: tuple[str, str]
+
+        Example:
+        ```python {{sticky: True}}
+        # Generate migration for schema change
+        generator = MigrationGenerator()
+        code, revision = await generator.new_migration(
+            down_objects_with_dependencies=[(
+                DBTable(table_name="users"),
+                []
+            )],
+            up_objects_with_dependencies=[(
+                DBTable(
+                    table_name="users",
+                    columns=[DBColumn(name="email", type=ColumnType.VARCHAR)]
+                ),
+                []
+            )],
+            down_revision="20240101",
+            user_message="Add email column to users table"
+        )
+        ```
+        """
         self.import_tracker.clear()
         revision = str(int(time()))
 
@@ -117,7 +190,38 @@ class MigrationGenerator:
 
         return code, revision
 
-    def actions_to_code(self, actions: list[DryRunAction | DryRunComment]):
+    def actions_to_code(self, actions: list[DryRunAction | DryRunComment]) -> list[str]:
+        """
+        Convert a list of database actions into executable Python code.
+        Handles both actual database operations and comments.
+
+        :param actions: List of actions to convert to code
+        :type actions: list[DryRunAction | DryRunComment]
+        :return: List of Python code lines
+        :rtype: list[str]
+
+        Example:
+        ```python {{sticky: True}}
+        generator = MigrationGenerator()
+        code_lines = generator.actions_to_code([
+            DryRunAction(
+                fn=actor.add_column,
+                kwargs={
+                    "table_name": "users",
+                    "column_name": "email",
+                    "explicit_data_type": ColumnType.VARCHAR
+                }
+            ),
+            DryRunComment(
+                text="Add email verification field",
+                previous_line=False
+            )
+        ])
+        # Results in:
+        # ['# Add email verification field',
+        #  'await migrator.actor.add_column(table_name="users", column_name="email", explicit_data_type=ColumnType.VARCHAR)']
+        ```
+        """
         code_lines: list[str] = []
 
         for action in actions:
@@ -154,9 +258,36 @@ class MigrationGenerator:
 
     def format_arg(self, value: Any) -> str:
         """
-        Format the argument to be a valid Python code string, handle escaping of strings,
-        and track necessary imports.
+        Format a Python value as a valid code string, handling proper escaping
+        and import tracking for complex types.
 
+        This method supports formatting of:
+        - Enums (with automatic import tracking)
+        - Basic types (bool, str, int, float)
+        - Collections (list, set, frozenset, tuple, dict)
+        - Pydantic models and dataclasses
+        - None values
+
+        :param value: The value to format as code
+        :type value: Any
+        :return: A string representation of the value as valid Python code
+        :rtype: str
+        :raises ValueError: If the value type is not supported
+        :raises TypeError: If a BaseModel/dataclass value is a class instead of an instance
+
+        Example:
+        ```python {{sticky: True}}
+        generator = MigrationGenerator()
+
+        # Format different types of values
+        generator.format_arg(SomeEnum.VALUE)  # -> "SomeEnum.VALUE"
+        generator.format_arg("hello")         # -> '"hello"'
+        generator.format_arg([1, 2, 3])       # -> "[1, 2, 3]"
+        generator.format_arg({"a": 1})        # -> '{"a": 1}'
+        generator.format_arg(
+            UserModel(name="John")
+        )                                     # -> 'UserModel(name="John")'
+        ```
         """
         if isinstance(value, Enum):
             self.track_import(value.__class__)
@@ -228,6 +359,32 @@ class MigrationGenerator:
         value: Type[Any] | Callable | ModuleType,
         explicit: str | None = None,
     ):
+        """
+        Track required imports for the generated migration file.
+        Manages the import statements needed for types and functions used in the migration.
+
+        :param value: The class, function, or module to import
+        :type value: Type[Any] | Callable | ModuleType
+        :param explicit: Optional explicit import path override
+        :type explicit: str | None
+        :raises ValueError: If explicit import is required for a module but not provided
+
+        Example:
+        ```python {{sticky: True}}
+        generator = MigrationGenerator()
+
+        # Track class import
+        generator.track_import(UserModel)
+        # -> Will add "from app.models import UserModel"
+
+        # Track with explicit path
+        generator.track_import(
+            some_module,
+            explicit="package.module.function"
+        )
+        # -> Will add "from package.module import function"
+        ```
+        """
         if ismodule(value):
             # We require an explicit import for modules
             if not explicit:
@@ -242,4 +399,26 @@ class MigrationGenerator:
         self.import_tracker[module].add(class_name)
 
     def indent_code(self, code: list[str], indent: int) -> str:
+        """
+        Indent lines of code by a specified number of levels.
+        Each level is 4 spaces.
+
+        :param code: List of code lines to indent
+        :type code: list[str]
+        :param indent: Number of indentation levels
+        :type indent: int
+        :return: The indented code as a single string
+        :rtype: str
+
+        Example:
+        ```python {{sticky: True}}
+        generator = MigrationGenerator()
+        code = generator.indent_code(
+            ["def example():", "return True"],
+            indent=1
+        )
+        # Results in:
+        # "    def example():\n        return True"
+        ```
+        """
         return "\n".join([f"{' ' * 4 * indent}{line}" for line in code])
