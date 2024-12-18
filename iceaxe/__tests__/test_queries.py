@@ -277,3 +277,27 @@ def test_allow_branching():
 
     assert query_1.limit_value == 1
     assert query_2.limit_value == 2
+
+
+def test_distinct_on():
+    new_query = (
+        QueryBuilder()
+        .select((UserDemo.name, UserDemo.email))
+        .distinct_on(UserDemo.name)
+    )
+    assert new_query.build() == (
+        'SELECT DISTINCT ON ("userdemo"."name") "userdemo"."name", "userdemo"."email" FROM "userdemo"',
+        [],
+    )
+
+
+def test_distinct_on_multiple_fields():
+    new_query = (
+        QueryBuilder()
+        .select((UserDemo.name, UserDemo.email))
+        .distinct_on(UserDemo.name, UserDemo.email)
+    )
+    assert new_query.build() == (
+        'SELECT DISTINCT ON ("userdemo"."name", "userdemo"."email") "userdemo"."name", "userdemo"."email" FROM "userdemo"',
+        [],
+    )

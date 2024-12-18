@@ -105,6 +105,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self.offset_value: int | None = None
         self.group_by_fields: list[DBFieldClassDefinition] = []
         self.having_conditions: list[FieldComparison] = []
+        self.distinct_on_fields: list[QueryLiteral] = []
 
         # Query specific params
         self.update_values: list[tuple[DBFieldClassDefinition, Any]] = []
@@ -382,6 +383,24 @@ class QueryBuilder(Generic[P, QueryType]):
         return self
 
     @allow_branching
+    def distinct_on(self, *fields: Any):
+        """
+        Adds a DISTINCT ON clause to the query. This will remove duplicate rows
+        from the result set.
+
+        """
+        valid_fields: list[QueryLiteral] = []
+
+        for field in fields:
+            if not is_column(field):
+                raise ValueError(f"Invalid field for group by: {field}")
+            literal, _ = field.to_query()
+            valid_fields.append(literal)
+
+        self.distinct_on_fields = valid_fields
+        return self
+
+    @allow_branching
     def text(self, query: str, *variables: Any):
         """
         Override the ORM builder and use a raw SQL query instead.
@@ -409,7 +428,15 @@ class QueryBuilder(Generic[P, QueryType]):
 
             primary_table = QueryIdentifier(self.main_model.get_table_name())
             fields = [str(field) for field in self.select_fields]
-            query = f"SELECT {', '.join(fields)} FROM {primary_table}"
+            query = "SELECT"
+
+            if self.distinct_on_fields:
+                distinct_fields = [
+                    str(distinct_field) for distinct_field in self.distinct_on_fields
+                ]
+                query += f" DISTINCT ON ({', '.join(distinct_fields)})"
+
+            query += f" {', '.join(fields)} FROM {primary_table}"
         elif self.query_type == "UPDATE":
             if not self.main_model:
                 raise ValueError("No model selected for query")
