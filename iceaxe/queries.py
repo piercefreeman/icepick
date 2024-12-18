@@ -487,6 +487,23 @@ class QueryBuilder(Generic[P, QueryType]):
 def and_(
     *conditions: bool,
 ) -> bool:
+    """
+    Combines multiple conditions with logical AND.
+    All conditions must be true for the group to be true.
+
+    :param conditions: Variable number of conditions to combine
+    :return: A field comparison group object
+
+    ```python {{sticky: True}}
+    query = select(User).where(
+        and_(
+            User.age >= 21,
+            User.status == "active",
+            User.role == "member"
+        )
+    )
+    ```
+    """
     field_comparisons: list[FieldComparison | FieldComparisonGroup] = []
     for condition in conditions:
         if not is_comparison(condition) and not is_comparison_group(condition):
@@ -501,6 +518,25 @@ def and_(
 def or_(
     *conditions: bool,
 ) -> bool:
+    """
+    Combines multiple conditions with logical OR.
+    At least one condition must be true for the group to be true.
+
+    :param conditions: Variable number of conditions to combine
+    :return: A field comparison group object
+
+    ```python {{sticky: True}}
+    query = select(User).where(
+        or_(
+            User.role == "admin",
+            and_(
+                User.role == "moderator",
+                User.permissions.contains("manage_users")
+            )
+        )
+    )
+    ```
+    """
     field_comparisons: list[FieldComparison | FieldComparisonGroup] = []
     for condition in conditions:
         if not is_comparison(condition) and not is_comparison_group(condition):
@@ -556,23 +592,87 @@ def select(
     | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
 ):
     """
-    Shortcut to create a SELECT query with a new QueryBuilder.
+    Creates a SELECT query to fetch data from the database. This is a shortcut function that creates
+    and returns a new QueryBuilder instance.
 
+    :param fields: The fields to select. Can be:
+                  - A single field or model class (e.g., User.id or User)
+                  - A tuple of fields (e.g., (User.id, User.name))
+                  - A tuple of model classes (e.g., (User, Post))
+    :return: A QueryBuilder instance configured for SELECT operations
+
+    ```python {{sticky: True}}
+    # Select all fields from User
+    users = await conn.execute(select(User))
+
+    # Select specific fields
+    results = await conn.execute(select((User.id, User.name)))
+
+    # Select with conditions
+    active_users = await conn.execute(
+        select(User)
+        .where(User.is_active == True)
+        .order_by(User.created_at, "DESC")
+        .limit(10)
+    )
+    ```
     """
     return QueryBuilder().select(fields)
 
 
 def update(model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
     """
-    Shortcut to create an UPDATE query with a new QueryBuilder.
+    Creates an UPDATE query to modify existing records in the database. This is a shortcut function
+    that creates and returns a new QueryBuilder instance.
 
+    :param model: The model class representing the table to update
+    :return: A QueryBuilder instance configured for UPDATE operations
+
+    ```python {{sticky: True}}
+    # Update all users' status
+    await conn.execute(
+        update(User)
+        .set(User.status, "inactive")
+        .where(User.last_login < datetime.now() - timedelta(days=30))
+    )
+
+    # Update multiple fields with conditions
+    await conn.execute(
+        update(User)
+        .set(User.verified, True)
+        .set(User.verification_date, datetime.now())
+        .where(User.email_confirmed == True)
+    )
+    ```
     """
     return QueryBuilder().update(model)
 
 
 def delete(model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
     """
-    Shortcut to create a DELETE query with a new QueryBuilder.
+    Creates a DELETE query to remove records from the database. This is a shortcut function
+    that creates and returns a new QueryBuilder instance.
 
+    :param model: The model class representing the table to delete from
+    :return: A QueryBuilder instance configured for DELETE operations
+
+    ```python {{sticky: True}}
+    # Delete inactive users
+    await conn.execute(
+        delete(User)
+        .where(User.is_active == False)
+    )
+
+    # Delete with complex conditions
+    await conn.execute(
+        delete(User)
+        .where(
+            and_(
+                User.created_at < datetime.now() - timedelta(days=90),
+                User.email_confirmed == False
+            )
+        )
+    )
+    ```
     """
     return QueryBuilder().delete(model)
