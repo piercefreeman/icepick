@@ -333,14 +333,10 @@ class DBConnection:
         It automatically constructs and executes a SELECT query with a WHERE clause matching the primary key.
 
         :param model: The model class to query (must be a subclass of TableBase)
-        :type model: Type[TableType]
         :param primary_key_value: The value of the primary key to look up
-        :type primary_key_value: Any
         :return: The model instance if found, None if no record matches the primary key
-        :rtype: TableType | None
         :raises ValueError: If the model has no primary key defined
 
-        Example:
         ```python {{sticky: True}}
         class User(TableBase):
             id: int = Field(primary_key=True)

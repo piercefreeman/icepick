@@ -26,7 +26,6 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
     - Registry tracking of all database model classes
     - Support for generic model instantiation
 
-    Example:
     ```python {{sticky: True}}
     class User(TableBase):  # Uses DBModelMetaclass
         id: int = Field(primary_key=True)
@@ -93,9 +92,7 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         a DBFieldClassDefinition if it is.
 
         :param key: The attribute name to access
-        :type key: str
         :return: Field definition or raises AttributeError
-        :rtype: Any
         :raises AttributeError: If the attribute doesn't exist and isn't a model field
         """
         if self.is_constructing:
@@ -120,7 +117,6 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         Get the set of all registered database model classes.
 
         :return: Set of registered TableBase classes
-        :rtype: set[Type["TableBase"]]
         """
         return cls._registry
 
@@ -133,13 +129,9 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         Handles both normal instantiation and pydantic's generic model instantiation.
 
         :param kwargs: Dictionary of keyword arguments
-        :type kwargs: dict[str, Any]
         :param key: Key to extract
-        :type key: str
         :param default: Default value if key not found
-        :type default: Any
         :return: Extracted value or default
-        :rtype: Any
         """
         if key in kwargs:
             return kwargs.pop(key)
@@ -158,7 +150,6 @@ class DBModelMetaclass(_model_construction.ModelMetaclass):
         Overrides the ClassVar typehint from TableBase for proper typing.
 
         :return: Dictionary of field names to field definitions
-        :rtype: dict[str, DBFieldInfo]
         """
         return super().model_fields  # type: ignore
 
@@ -168,10 +159,6 @@ class UniqueConstraint(BaseModel):
     Represents a UNIQUE constraint in a database table.
     Ensures that the specified combination of columns contains unique values across all rows.
 
-    :param columns: List of column names that should have unique values
-    :type columns: list[str]
-
-    Example:
     ```python {{sticky: True}}
     class User(TableBase):
         email: str
@@ -184,6 +171,9 @@ class UniqueConstraint(BaseModel):
     """
 
     columns: list[str]
+    """
+    List of column names that should have unique values
+    """
 
 
 class IndexConstraint(BaseModel):
@@ -191,10 +181,6 @@ class IndexConstraint(BaseModel):
     Represents an INDEX on one or more columns in a database table.
     Improves query performance for the specified columns.
 
-    :param columns: List of column names to create an index on
-    :type columns: list[str]
-
-    Example:
     ```python {{sticky: True}}
     class User(TableBase):
         email: str
@@ -207,6 +193,9 @@ class IndexConstraint(BaseModel):
     """
 
     columns: list[str]
+    """
+    List of column names to create an index on
+    """
 
 
 INTERNAL_TABLE_FIELDS = ["modified_attrs"]
@@ -225,12 +214,6 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
     - Support for unique constraints and indexes
     - Integration with Pydantic for validation
 
-    Class Variables:
-        table_name (ClassVar[str]): Optional custom name for the table
-        table_args (ClassVar[list[UniqueConstraint | IndexConstraint]]): Table constraints and indexes
-        model_fields (ClassVar[dict[str, DBFieldInfo]]): Dictionary of field definitions
-
-    Example:
     ```python {{sticky: True}}
     class User(TableBase):
         # Custom table name (optional)
@@ -258,10 +241,21 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         model_fields: ClassVar[dict[str, DBFieldInfo]]  # type: ignore
 
     table_name: ClassVar[str] = PydanticUndefined  # type: ignore
+    """
+    Optional custom name for the table
+    """
+
     table_args: ClassVar[list[UniqueConstraint | IndexConstraint]] = PydanticUndefined  # type: ignore
+    """
+    Table constraints and indexes
+    """
 
     # Private methods
     modified_attrs: dict[str, Any] = Field(default_factory=dict, exclude=True)
+    """
+    Dictionary of modified field values since instantiation or the last clear_modified_attributes() call.
+    Used to construct differential update queries.
+    """
 
     def __setattr__(self, name: str, value: Any) -> None:
         """
@@ -269,9 +263,7 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         This allows for efficient database updates by only updating changed fields.
 
         :param name: Attribute name
-        :type name: str
         :param value: New value
-        :type value: Any
         """
         if name in self.model_fields:
             self.modified_attrs[name] = value
@@ -283,7 +275,6 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         or the last clear_modified_attributes() call.
 
         :return: Dictionary of modified attribute names and their values
-        :rtype: dict[str, Any]
         """
         return self.modified_attrs
 
@@ -301,7 +292,6 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         Uses the custom table_name if set, otherwise converts the class name to lowercase.
 
         :return: Table name to use in SQL queries
-        :rtype: str
         """
         if cls.table_name == PydanticUndefined:
             return cls.__name__.lower()
@@ -314,7 +304,6 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         Excludes internal fields used for model functionality.
 
         :return: Dictionary of field names to field definitions
-        :rtype: dict[str, DBFieldInfo]
         """
         return {
             field: info
@@ -330,9 +319,7 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         for each field, which ensures proper field name resolution in complex queries.
 
         :return: SQL-safe field selection string
-        :rtype: QueryLiteral
 
-        Example:
         ```python {{sticky: True}}
         # For a User class with fields 'id' and 'name':
         User.select_fields()

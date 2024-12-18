@@ -16,13 +16,6 @@ class PostgresDateTime(PostgresFieldBase):
     Extension to Python's datetime type that specifies additional Postgres-specific configuration.
     Used to customize the timezone behavior of datetime fields in Postgres.
 
-    :param timezone: Whether the datetime field should include timezone information in Postgres.
-                    If True, maps to TIMESTAMP WITH TIME ZONE.
-                    If False, maps to TIMESTAMP WITHOUT TIME ZONE.
-                    Defaults to False.
-    :type timezone: bool
-
-    Example:
     ```python {{sticky: True}}
     from iceaxe import Field, TableBase
     class Event(TableBase):
@@ -32,6 +25,13 @@ class PostgresDateTime(PostgresFieldBase):
     """
 
     timezone: bool = False
+    """
+    Whether the datetime field should include timezone information in Postgres.
+        If True, maps to TIMESTAMP WITH TIME ZONE.
+        If False, maps to TIMESTAMP WITHOUT TIME ZONE.
+        Defaults to False.
+
+    """
 
 
 class PostgresTime(PostgresFieldBase):
@@ -39,13 +39,6 @@ class PostgresTime(PostgresFieldBase):
     Extension to Python's time type that specifies additional Postgres-specific configuration.
     Used to customize the timezone behavior of time fields in Postgres.
 
-    :param timezone: Whether the time field should include timezone information in Postgres.
-                    If True, maps to TIME WITH TIME ZONE.
-                    If False, maps to TIME WITHOUT TIME ZONE.
-                    Defaults to False.
-    :type timezone: bool
-
-    Example:
     ```python {{sticky: True}}
     from iceaxe import Field, TableBase
     class Schedule(TableBase):
@@ -55,3 +48,10 @@ class PostgresTime(PostgresFieldBase):
     """
 
     timezone: bool = False
+    """
+    Whether the time field should include timezone information in Postgres.
+        If True, maps to TIME WITH TIME ZONE.
+        If False, maps to TIME WITHOUT TIME ZONE.
+        Defaults to False.
+
+    """

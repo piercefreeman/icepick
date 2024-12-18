@@ -51,7 +51,6 @@ class MigrationGenerator:
     - Type creation and updates
     - Import tracking for required dependencies
 
-    Example:
     ```python {{sticky: True}}
     # Generate a new migration
     generator = MigrationGenerator()
@@ -100,17 +99,11 @@ class MigrationGenerator:
         Generate a new migration file by comparing two database states.
 
         :param down_objects_with_dependencies: Current database state with object dependencies
-        :type down_objects_with_dependencies: Sequence[tuple[DBObject, Sequence[DBObject | DBObjectPointer]]]
         :param up_objects_with_dependencies: Desired database state with object dependencies
-        :type up_objects_with_dependencies: Sequence[tuple[DBObject, Sequence[DBObject | DBObjectPointer]]]
         :param down_revision: ID of the previous migration this one builds upon
-        :type down_revision: str | None
         :param user_message: Optional description of the migration's purpose
-        :type user_message: str | None
         :return: A tuple of (generated migration code, new revision ID)
-        :rtype: tuple[str, str]
 
-        Example:
         ```python {{sticky: True}}
         # Generate migration for schema change
         generator = MigrationGenerator()
@@ -196,11 +189,8 @@ class MigrationGenerator:
         Handles both actual database operations and comments.
 
         :param actions: List of actions to convert to code
-        :type actions: list[DryRunAction | DryRunComment]
         :return: List of Python code lines
-        :rtype: list[str]
 
-        Example:
         ```python {{sticky: True}}
         generator = MigrationGenerator()
         code_lines = generator.actions_to_code([
@@ -269,13 +259,10 @@ class MigrationGenerator:
         - None values
 
         :param value: The value to format as code
-        :type value: Any
         :return: A string representation of the value as valid Python code
-        :rtype: str
         :raises ValueError: If the value type is not supported
         :raises TypeError: If a BaseModel/dataclass value is a class instead of an instance
 
-        Example:
         ```python {{sticky: True}}
         generator = MigrationGenerator()
 
@@ -364,12 +351,9 @@ class MigrationGenerator:
         Manages the import statements needed for types and functions used in the migration.
 
         :param value: The class, function, or module to import
-        :type value: Type[Any] | Callable | ModuleType
         :param explicit: Optional explicit import path override
-        :type explicit: str | None
         :raises ValueError: If explicit import is required for a module but not provided
 
-        Example:
         ```python {{sticky: True}}
         generator = MigrationGenerator()
 
@@ -404,13 +388,9 @@ class MigrationGenerator:
         Each level is 4 spaces.
 
         :param code: List of code lines to indent
-        :type code: list[str]
         :param indent: Number of indentation levels
-        :type indent: int
         :return: The indented code as a single string
-        :rtype: str
 
-        Example:
         ```python {{sticky: True}}
         generator = MigrationGenerator()
         code = generator.indent_code(

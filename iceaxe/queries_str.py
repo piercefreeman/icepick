@@ -9,13 +9,9 @@ class QueryElementBase(ABC):
     This class provides the foundation for handling different types of SQL elements
     (like identifiers and literals) with their specific escaping and formatting rules.
 
-    :param value: The raw string value to be processed
-    :type value: str
-
     The class implements equality comparisons based on the processed string representation,
     making it suitable for comparing query elements in test assertions and caching.
 
-    Example:
     ```python {{sticky: True}}
     # Base class is not used directly, but through its subclasses:
     table_name = QueryIdentifier("users")  # -> "users"
@@ -24,6 +20,9 @@ class QueryElementBase(ABC):
     """
 
     def __init__(self, value: str):
+        """
+        :param value: The raw string value to be processed
+        """
         self._value = self.process_value(value)
 
     @abstractmethod
@@ -33,9 +32,7 @@ class QueryElementBase(ABC):
         Must be implemented by subclasses.
 
         :param value: The raw string value to process
-        :type value: str
         :return: The processed string value
-        :rtype: str
         """
         pass
 
@@ -60,10 +57,6 @@ class QueryIdentifier(QueryElementBase):
     When used, the identifier is automatically wrapped in double quotes, making it
     safe for use in queries even if it contains special characters or SQL keywords.
 
-    :param value: The identifier name (e.g., table name, column name)
-    :type value: str
-
-    Example:
     ```python {{sticky: True}}
     # In a query builder context:
     table = QueryIdentifier("user_data")
@@ -89,14 +82,10 @@ class QueryLiteral(QueryElementBase):
     This class is used for parts of the query that are already properly formatted and
     should not be modified, such as SQL functions, operators, or pre-processed strings.
 
-    :param value: The raw SQL string to be included in the query
-    :type value: str
-
     Warning:
         Be careful when using QueryLiteral with user input, as it bypasses SQL escaping.
         It should primarily be used for trusted, programmatically generated SQL components.
 
-    Example:
     ```python {{sticky: True}}
     # Safe usage with SQL functions:
     count = QueryLiteral("COUNT(*)")

@@ -492,11 +492,8 @@ def and_(
     All conditions must be true for the group to be true.
 
     :param conditions: Variable number of conditions to combine
-    :type conditions: bool
     :return: A field comparison group object
-    :rtype: bool
 
-    Example:
     ```python {{sticky: True}}
     query = select(User).where(
         and_(
@@ -526,11 +523,8 @@ def or_(
     At least one condition must be true for the group to be true.
 
     :param conditions: Variable number of conditions to combine
-    :type conditions: bool
     :return: A field comparison group object
-    :rtype: bool
 
-    Example:
     ```python {{sticky: True}}
     query = select(User).where(
         or_(
@@ -605,11 +599,8 @@ def select(
                   - A single field or model class (e.g., User.id or User)
                   - A tuple of fields (e.g., (User.id, User.name))
                   - A tuple of model classes (e.g., (User, Post))
-    :type fields: T | Type[T] | tuple[T | Type[T], ...] | tuple[T | Type[T], T2 | Type[T2], ...]
     :return: A QueryBuilder instance configured for SELECT operations
-    :rtype: QueryBuilder[T | tuple[T, ...], Literal["SELECT"]]
 
-    Example:
     ```python {{sticky: True}}
     # Select all fields from User
     users = await conn.execute(select(User))
@@ -635,11 +626,8 @@ def update(model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
     that creates and returns a new QueryBuilder instance.
 
     :param model: The model class representing the table to update
-    :type model: Type[TableBase]
     :return: A QueryBuilder instance configured for UPDATE operations
-    :rtype: QueryBuilder[None, Literal["UPDATE"]]
 
-    Example:
     ```python {{sticky: True}}
     # Update all users' status
     await conn.execute(
@@ -666,11 +654,8 @@ def delete(model: Type[TableBase]) -> QueryBuilder[None, Literal["DELETE"]]:
     that creates and returns a new QueryBuilder instance.
 
     :param model: The model class representing the table to delete from
-    :type model: Type[TableBase]
     :return: A QueryBuilder instance configured for DELETE operations
-    :rtype: QueryBuilder[None, Literal["DELETE"]]
 
-    Example:
     ```python {{sticky: True}}
     # Delete inactive users
     await conn.execute(

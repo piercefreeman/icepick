@@ -15,23 +15,6 @@ class ComparisonType(StrEnum):
     Enumeration of SQL comparison operators used in query conditions.
     These operators are used to build WHERE clauses and other conditional expressions.
 
-    Attributes:
-        EQ ("="): Equal to comparison
-        NE ("!="): Not equal to comparison
-        LT ("<"): Less than comparison
-        LE ("<="): Less than or equal to comparison
-        GT (">"): Greater than comparison
-        GE (">="): Greater than or equal to comparison
-        IN ("IN"): Check if value is in a list of values
-        NOT_IN ("NOT IN"): Check if value is not in a list of values
-        LIKE ("LIKE"): Pattern matching with wildcards
-        NOT_LIKE ("NOT LIKE"): Negated pattern matching
-        ILIKE ("ILIKE"): Case-insensitive pattern matching
-        NOT_ILIKE ("NOT ILIKE"): Negated case-insensitive pattern matching
-        IS ("IS"): NULL comparison
-        IS_NOT ("IS NOT"): NOT NULL comparison
-
-    Example:
     ```python {{sticky: True}}
     # Using comparison operators in queries:
     query = select(User).where(
@@ -43,21 +26,78 @@ class ComparisonType(StrEnum):
     """
 
     EQ = "="
+    """
+    Equal to comparison
+    """
+
     NE = "!="
+    """
+    Not equal to comparison
+    """
+
     LT = "<"
+    """
+    Less than comparison
+    """
+
     LE = "<="
+    """
+    Less than or equal to comparison
+    """
+
     GT = ">"
+    """
+    Greater than comparison
+    """
+
     GE = ">="
+    """
+    Greater than or equal to comparison
+    """
+
     IN = "IN"
+    """
+    Check if value is in a list of values
+    """
+
     NOT_IN = "NOT IN"
+    """
+    Check if value is not in a list of values
+    """
 
     LIKE = "LIKE"
+    """
+    Pattern matching with wildcards. Supports cases like:
+    - "John%" (matches "John Doe", "Johnny", etc.)
+    """
+
     NOT_LIKE = "NOT LIKE"
+    """
+    Negated pattern matching with wildcards. Supports cases like:
+    - "John%" (matches "Amy", "Bob", etc.)
+    """
+
     ILIKE = "ILIKE"
+    """
+    Case-insensitive pattern matching. Supports cases like:
+    - "john%" (matches "John Doe", "johnny", etc.)
+    """
+
     NOT_ILIKE = "NOT ILIKE"
+    """
+    Negated case-insensitive pattern matching. Supports cases like:
+    - "john%" (matches "Amy", "Bob", etc.)
+    """
 
     IS = "IS"
+    """
+    NULL comparison
+    """
+
     IS_NOT = "IS NOT"
+    """
+    NOT NULL comparison
+    """
 
 
 class ComparisonGroupType(StrEnum):
@@ -65,11 +105,6 @@ class ComparisonGroupType(StrEnum):
     Enumeration of logical operators used to combine multiple comparisons in SQL queries.
     These operators allow building complex conditions by combining multiple WHERE clauses.
 
-    Attributes:
-        AND ("AND"): Logical AND operator, all conditions must be true
-        OR ("OR"): Logical OR operator, at least one condition must be true
-
-    Example:
     ```python {{sticky: True}}
     # Combining multiple conditions:
     query = select(User).where(
@@ -90,7 +125,14 @@ class ComparisonGroupType(StrEnum):
     """
 
     AND = "AND"
+    """
+    Logical AND operator, all conditions must be true
+    """
+
     OR = "OR"
+    """
+    Logical OR operator, at least one condition must be true
+    """
 
 
 @dataclass
@@ -99,14 +141,6 @@ class FieldComparison(Generic[T]):
     Represents a single SQL comparison operation between a field and a value or another field.
     This class is typically created through the comparison operators (==, !=, >, <, etc.) on database fields.
 
-    :param left: The left side of the comparison (typically a database field)
-    :type left: T
-    :param comparison: The type of comparison to perform
-    :type comparison: ComparisonType
-    :param right: The right side of the comparison (can be a value or another field)
-    :type right: T | Any
-
-    Example:
     ```python {{sticky: True}}
     # These expressions create FieldComparison objects:
     User.age >= 21
@@ -123,17 +157,26 @@ class FieldComparison(Generic[T]):
     """
 
     left: T
-    comparison: ComparisonType
-    right: T | Any
+    """
+    The left side of the comparison (typically a database field)
+    """
 
-    def to_query(self, start: int = 1):
+    comparison: ComparisonType
+    """
+    The type of comparison to perform
+    """
+
+    right: T | Any
+    """
+    The right side of the comparison (can be a value or another field)
+    """
+
+    def to_query(self, start: int = 1) -> tuple[QueryLiteral, list[Any]]:
         """
         Converts the comparison to its SQL representation.
 
         :param start: The starting index for query parameters, defaults to 1
-        :type start: int
         :return: A tuple of the SQL query string and list of parameter values
-        :rtype: tuple[QueryLiteral, list[Any]]
         """
         variables = []
 
@@ -174,12 +217,6 @@ class FieldComparisonGroup:
     Represents a group of field comparisons combined with a logical operator (AND/OR).
     This class is typically created through the and_() and or_() functions.
 
-    :param type: The type of logical operator to use (AND/OR)
-    :type type: ComparisonGroupType
-    :param elements: List of comparisons or nested comparison groups to combine
-    :type elements: list[FieldComparison | FieldComparisonGroup]
-
-    Example:
     ```python {{sticky: True}}
     # Using and_() to create an AND group:
     query = select(User).where(
@@ -205,16 +242,22 @@ class FieldComparisonGroup:
     """
 
     type: ComparisonGroupType
-    elements: list["FieldComparison | FieldComparisonGroup"]
+    """
+    The type of logical operator to use (AND/OR)
 
-    def to_query(self, start: int = 1):
+    """
+
+    elements: list["FieldComparison | FieldComparisonGroup"]
+    """
+    List of comparisons or nested comparison groups to combine
+    """
+
+    def to_query(self, start: int = 1) -> tuple[QueryLiteral, list[Any]]:
         """
         Converts the comparison group to its SQL representation.
 
         :param start: The starting index for query parameters, defaults to 1
-        :type start: int
         :return: A tuple of the SQL query string and list of parameter values
-        :rtype: tuple[QueryLiteral, list[Any]]
         """
         queries = ""
         all_variables = []
@@ -246,7 +289,6 @@ class ComparisonBase(ABC, Generic[J]):
     to enable natural syntax for building SQL queries. It also provides additional
     methods for SQL-specific operations like IN, LIKE, and NULL comparisons.
 
-    Example:
     ```python {{sticky: True}}
     # ComparisonBase enables these operations on database fields:
     User.age >= 21
@@ -264,7 +306,6 @@ class ComparisonBase(ABC, Generic[J]):
 
         :param other: Value to compare against
         :return: A field comparison object
-        :rtype: FieldComparison
         """
         if other is None:
             return self._compare(ComparisonType.IS, None)
@@ -277,7 +318,6 @@ class ComparisonBase(ABC, Generic[J]):
 
         :param other: Value to compare against
         :return: A field comparison object
-        :rtype: FieldComparison
         """
         if other is None:
             return self._compare(ComparisonType.IS_NOT, None)
@@ -290,7 +330,6 @@ class ComparisonBase(ABC, Generic[J]):
 
         :param other: Value to compare against
         :return: A field comparison object
-        :rtype: FieldComparison
         """
         return self._compare(ComparisonType.LT, other)
 
@@ -301,7 +340,6 @@ class ComparisonBase(ABC, Generic[J]):
 
         :param other: Value to compare against
         :return: A field comparison object
-        :rtype: FieldComparison
         """
         return self._compare(ComparisonType.LE, other)
 
@@ -312,7 +350,6 @@ class ComparisonBase(ABC, Generic[J]):
 
         :param other: Value to compare against
         :return: A field comparison object
-        :rtype: FieldComparison
         """
         return self._compare(ComparisonType.GT, other)
 
@@ -323,7 +360,6 @@ class ComparisonBase(ABC, Generic[J]):
 
         :param other: Value to compare against
         :return: A field comparison object
-        :rtype: FieldComparison
         """
         return self._compare(ComparisonType.GE, other)
 
@@ -333,9 +369,7 @@ class ComparisonBase(ABC, Generic[J]):
         Checks if the field's value is in a sequence of values.
 
         :param other: Sequence of values to check against
-        :type other: Sequence[J]
         :return: A field comparison object
-        :rtype: bool
         """
         return self._compare(ComparisonType.IN, other)  # type: ignore
 
@@ -345,9 +379,7 @@ class ComparisonBase(ABC, Generic[J]):
         Checks if the field's value is not in a sequence of values.
 
         :param other: Sequence of values to check against
-        :type other: Sequence[J]
         :return: A field comparison object
-        :rtype: bool
         """
         return self._compare(ComparisonType.NOT_IN, other)  # type: ignore
 
@@ -359,9 +391,7 @@ class ComparisonBase(ABC, Generic[J]):
         Case-sensitive string pattern matching.
 
         :param other: Pattern to match against
-        :type other: str
         :return: A field comparison object
-        :rtype: bool
         """
         return self._compare(ComparisonType.LIKE, other)  # type: ignore
 
@@ -373,9 +403,7 @@ class ComparisonBase(ABC, Generic[J]):
         Case-sensitive string pattern non-matching.
 
         :param other: Pattern to match against
-        :type other: str
         :return: A field comparison object
-        :rtype: bool
         """
         return self._compare(ComparisonType.NOT_LIKE, other)  # type: ignore
 
@@ -387,9 +415,7 @@ class ComparisonBase(ABC, Generic[J]):
         Case-insensitive string pattern matching.
 
         :param other: Pattern to match against
-        :type other: str
         :return: A field comparison object
-        :rtype: bool
         """
         return self._compare(ComparisonType.ILIKE, other)  # type: ignore
 
@@ -401,9 +427,7 @@ class ComparisonBase(ABC, Generic[J]):
         Case-insensitive string pattern non-matching.
 
         :param other: Pattern to match against
-        :type other: str
         :return: A field comparison object
-        :rtype: bool
         """
         return self._compare(ComparisonType.NOT_ILIKE, other)  # type: ignore
 
@@ -412,11 +436,8 @@ class ComparisonBase(ABC, Generic[J]):
         Internal method to create a field comparison.
 
         :param comparison: Type of comparison to create
-        :type comparison: ComparisonType
         :param other: Value to compare against
-        :type other: Any
         :return: A field comparison object
-        :rtype: FieldComparison[Self]
         """
         return FieldComparison(left=self, comparison=comparison, right=other)
 
@@ -427,6 +448,5 @@ class ComparisonBase(ABC, Generic[J]):
         Must be implemented by subclasses.
 
         :return: A tuple of the SQL query string and list of parameter values
-        :rtype: tuple[QueryLiteral, list[Any]]
         """
         pass
