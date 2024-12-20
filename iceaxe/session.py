@@ -165,7 +165,7 @@ class DBConnection:
         LOGGER.debug(f"Executing query: {sql_text} with variables: {variables}")
         values = await self.conn.fetch(sql_text, *variables)
 
-        if query.query_type == "SELECT":
+        if query._query_type == "SELECT":
             # Pre-cache the select types for better performance
             select_types = [
                 (
@@ -173,10 +173,10 @@ class DBConnection:
                     is_column(select_raw),
                     is_function_metadata(select_raw),
                 )
-                for select_raw in query.select_raw
+                for select_raw in query._select_raw
             ]
 
-            result_all = optimize_exec_casting(values, query.select_raw, select_types)
+            result_all = optimize_exec_casting(values, query._select_raw, select_types)
             return cast(list[T], result_all)
 
         return None

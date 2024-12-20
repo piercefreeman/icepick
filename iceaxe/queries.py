@@ -125,32 +125,32 @@ class QueryBuilder(Generic[P, QueryType]):
     """
 
     def __init__(self):
-        self.query_type: QueryType | None = None
-        self.main_model: Type[TableBase] | None = None
+        self._query_type: QueryType | None = None
+        self._main_model: Type[TableBase] | None = None
 
-        self.return_typehint: P
+        self._return_typehint: P
 
-        self.where_conditions: list[FieldComparison | FieldComparisonGroup] = []
-        self.order_by_clauses: list[str] = []
-        self.join_clauses: list[str] = []
-        self.limit_value: int | None = None
-        self.offset_value: int | None = None
-        self.group_by_fields: list[DBFieldClassDefinition] = []
-        self.having_conditions: list[FieldComparison] = []
-        self.distinct_on_fields: list[QueryLiteral] = []
-        self.for_update_config: ForUpdateConfig = ForUpdateConfig()
+        self._where_conditions: list[FieldComparison | FieldComparisonGroup] = []
+        self._order_by_clauses: list[str] = []
+        self._join_clauses: list[str] = []
+        self._limit_value: int | None = None
+        self._offset_value: int | None = None
+        self._group_by_fields: list[DBFieldClassDefinition] = []
+        self._having_conditions: list[FieldComparison] = []
+        self._distinct_on_fields: list[QueryLiteral] = []
+        self._for_update_config: ForUpdateConfig = ForUpdateConfig()
 
         # Query specific params
-        self.update_values: list[tuple[DBFieldClassDefinition, Any]] = []
-        self.select_fields: list[QueryLiteral] = []
-        self.select_raw: list[
+        self._update_values: list[tuple[DBFieldClassDefinition, Any]] = []
+        self._select_fields: list[QueryLiteral] = []
+        self._select_raw: list[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata
         ] = []
-        self.select_aggregate_count = 0
+        self._select_aggregate_count = 0
 
         # Text
-        self.text_query: str | None = None
-        self.text_variables: list[Any] = []
+        self._text_query: str | None = None
+        self._text_variables: list[Any] = []
 
     @overload
     def select(self, fields: T | Type[T]) -> QueryBuilder[T, Literal["SELECT"]]: ...
@@ -251,8 +251,8 @@ class QueryBuilder(Generic[P, QueryType]):
         self,
         fields: tuple[DBFieldClassDefinition | Type[TableBase] | FunctionMetadata, ...],
     ):
-        self.query_type = "SELECT"  # type: ignore
-        self.return_typehint = fields  # type: ignore
+        self._query_type = "SELECT"  # type: ignore
+        self._return_typehint = fields  # type: ignore
 
         if not fields:
             raise ValueError("At least one field must be selected")
@@ -260,29 +260,29 @@ class QueryBuilder(Generic[P, QueryType]):
         # We always take the default FROM table as the first element
         representative_field = fields[0]
         if is_column(representative_field):
-            self.main_model = representative_field.root_model
+            self._main_model = representative_field.root_model
         elif is_base_table(representative_field):
-            self.main_model = representative_field
+            self._main_model = representative_field
         elif is_function_metadata(representative_field):
-            self.main_model = representative_field.original_field.root_model
+            self._main_model = representative_field.original_field.root_model
 
         for field in fields:
             if is_column(field):
                 literal, _ = field.to_query()
-                self.select_fields.append(literal)
-                self.select_raw.append(field)
+                self._select_fields.append(literal)
+                self._select_raw.append(field)
             elif is_base_table(field):
-                self.select_fields.append(field.select_fields())
-                self.select_raw.append(field)
+                self._select_fields.append(field.select_fields())
+                self._select_raw.append(field)
             elif is_function_metadata(field):
-                field.local_name = f"aggregate_{self.select_aggregate_count}"
+                field.local_name = f"aggregate_{self._select_aggregate_count}"
                 local_name_token = QueryLiteral(field.local_name)
 
-                self.select_fields.append(
+                self._select_fields.append(
                     QueryLiteral(f"{field.literal} AS {local_name_token}")
                 )
-                self.select_raw.append(field)
-                self.select_aggregate_count += 1
+                self._select_raw.append(field)
+                self._select_aggregate_count += 1
 
     @allow_branching
     def update(self, model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
@@ -291,8 +291,8 @@ class QueryBuilder(Generic[P, QueryType]):
         QueryBuilder that is now flagged as an UPDATE query.
 
         """
-        self.query_type = "UPDATE"  # type: ignore
-        self.main_model = model
+        self._query_type = "UPDATE"  # type: ignore
+        self._main_model = model
         return self  # type: ignore
 
     @allow_branching
@@ -302,8 +302,8 @@ class QueryBuilder(Generic[P, QueryType]):
         QueryBuilder that is now flagged as a DELETE query.
 
         """
-        self.query_type = "DELETE"  # type: ignore
-        self.main_model = model
+        self._query_type = "DELETE"  # type: ignore
+        self._main_model = model
         return self  # type: ignore
 
     @allow_branching
@@ -359,7 +359,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 raise ValueError(f"Invalid where condition: {condition}")
             validated_comparisons.append(condition)
 
-        self.where_conditions += validated_comparisons
+        self._where_conditions += validated_comparisons
         return self
 
     @allow_branching
@@ -400,7 +400,7 @@ class QueryBuilder(Generic[P, QueryType]):
             raise ValueError(f"Invalid order by field: {field}")
 
         field_token, _ = field.to_query()
-        self.order_by_clauses.append(f"{field_token} {direction}")
+        self._order_by_clauses.append(f"{field_token} {direction}")
         return self
 
     @allow_branching
@@ -450,7 +450,7 @@ class QueryBuilder(Generic[P, QueryType]):
         on_right, _ = on.right.to_query()
 
         join_sql = f"{join_type} JOIN {table_name} ON {on_left} {comparison} {on_right}"
-        self.join_clauses.append(join_sql)
+        self._join_clauses.append(join_sql)
         return self
 
     @allow_branching
@@ -462,7 +462,7 @@ class QueryBuilder(Generic[P, QueryType]):
         if not is_column(column):
             raise ValueError(f"Invalid column for set: {column}")
 
-        self.update_values.append((column, value))
+        self._update_values.append((column, value))
         return self
 
     @allow_branching
@@ -492,7 +492,7 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        self.limit_value = value
+        self._limit_value = value
         return self
 
     @allow_branching
@@ -524,7 +524,7 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        self.offset_value = value
+        self._offset_value = value
         return self
 
     @allow_branching
@@ -572,7 +572,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 raise ValueError(f"Invalid field for group by: {field}")
             valid_fields.append(field)
 
-        self.group_by_fields = valid_fields
+        self._group_by_fields = valid_fields
         return self
 
     @allow_branching
@@ -616,7 +616,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 raise ValueError(f"Invalid having condition: {condition}")
             valid_conditions.append(condition)
 
-        self.having_conditions += valid_conditions
+        self._having_conditions += valid_conditions
         return self
 
     @allow_branching
@@ -652,7 +652,7 @@ class QueryBuilder(Generic[P, QueryType]):
             literal, _ = field.to_query()
             valid_fields.append(literal)
 
-        self.distinct_on_fields = valid_fields
+        self._distinct_on_fields = valid_fields
         return self
 
     @allow_branching
@@ -690,8 +690,8 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        self.text_query = query
-        self.text_variables = list(variables)
+        self._text_query = query
+        self._text_variables = list(variables)
         return self
 
     @allow_branching
@@ -712,13 +712,13 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: QueryBuilder instance
         """
         # Combine options, with True taking precedence for flags
-        self.for_update_config.nowait |= nowait
-        self.for_update_config.skip_locked |= skip_locked
-        self.for_update_config.of_tables |= {
+        self._for_update_config.nowait |= nowait
+        self._for_update_config.skip_locked |= skip_locked
+        self._for_update_config.of_tables |= {
             model.get_table_name() for model in (of or [])
         }
 
-        self.for_update_config.conditions_set = True
+        self._for_update_config.conditions_set = True
         return self
 
     def build(self) -> tuple[str, list[Any]]:
@@ -744,69 +744,69 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: A tuple of (query_string, parameter_list)
 
         """
-        if self.text_query:
-            return self.text_query, self.text_variables
+        if self._text_query:
+            return self._text_query, self._text_variables
 
         query = ""
         variables: list[Any] = []
 
-        if self.query_type == "SELECT":
-            if not self.main_model:
+        if self._query_type == "SELECT":
+            if not self._main_model:
                 raise ValueError("No model selected for query")
 
-            primary_table = QueryIdentifier(self.main_model.get_table_name())
-            fields = [str(field) for field in self.select_fields]
+            primary_table = QueryIdentifier(self._main_model.get_table_name())
+            fields = [str(field) for field in self._select_fields]
             query = "SELECT"
 
-            if self.distinct_on_fields:
+            if self._distinct_on_fields:
                 distinct_fields = [
-                    str(distinct_field) for distinct_field in self.distinct_on_fields
+                    str(distinct_field) for distinct_field in self._distinct_on_fields
                 ]
                 query += f" DISTINCT ON ({', '.join(distinct_fields)})"
 
             query += f" {', '.join(fields)} FROM {primary_table}"
-        elif self.query_type == "UPDATE":
-            if not self.main_model:
+        elif self._query_type == "UPDATE":
+            if not self._main_model:
                 raise ValueError("No model selected for query")
 
-            primary_table = QueryIdentifier(self.main_model.get_table_name())
+            primary_table = QueryIdentifier(self._main_model.get_table_name())
 
             set_components = []
-            for column, value in self.update_values:
+            for column, value in self._update_values:
                 column_token, _ = column.to_query()
                 set_components.append(f"{column_token} = ${len(variables) + 1}")
                 variables.append(value)
 
             set_clause = ", ".join(set_components)
             query = f"UPDATE {primary_table} SET {set_clause}"
-        elif self.query_type == "DELETE":
-            if not self.main_model:
+        elif self._query_type == "DELETE":
+            if not self._main_model:
                 raise ValueError("No model selected for query")
 
-            primary_table = QueryIdentifier(self.main_model.get_table_name())
+            primary_table = QueryIdentifier(self._main_model.get_table_name())
             query = f"DELETE FROM {primary_table}"
 
-        if self.join_clauses:
-            query += " " + " ".join(self.join_clauses)
+        if self._join_clauses:
+            query += " " + " ".join(self._join_clauses)
 
-        if self.where_conditions:
-            comparison_group = cast(FieldComparisonGroup, and_(*self.where_conditions))  # type: ignore
+        if self._where_conditions:
+            comparison_group = cast(FieldComparisonGroup, and_(*self._where_conditions))  # type: ignore
             comparison_literal, comparison_variables = comparison_group.to_query(
                 len(variables) + 1
             )
             query += f" WHERE {comparison_literal}"
             variables += comparison_variables
 
-        if self.group_by_fields:
+        if self._group_by_fields:
             query += " GROUP BY "
             query += ", ".join(
                 f"{QueryIdentifier(field.root_model.get_table_name())}.{QueryIdentifier(field.key)}"
-                for field in self.group_by_fields
+                for field in self._group_by_fields
             )
 
-        if self.having_conditions:
+        if self._having_conditions:
             query += " HAVING "
-            for i, having_condition in enumerate(self.having_conditions):
+            for i, having_condition in enumerate(self._having_conditions):
                 if i > 0:
                     query += " AND "
 
@@ -822,23 +822,23 @@ class QueryBuilder(Generic[P, QueryType]):
                     f"{having_field} {having_condition.comparison.value} {having_value}"
                 )
 
-        if self.order_by_clauses:
-            query += " ORDER BY " + ", ".join(self.order_by_clauses)
+        if self._order_by_clauses:
+            query += " ORDER BY " + ", ".join(self._order_by_clauses)
 
-        if self.limit_value is not None:
-            query += f" LIMIT {self.limit_value}"
+        if self._limit_value is not None:
+            query += f" LIMIT {self._limit_value}"
 
-        if self.offset_value is not None:
-            query += f" OFFSET {self.offset_value}"
+        if self._offset_value is not None:
+            query += f" OFFSET {self._offset_value}"
 
-        if self.for_update_config.conditions_set:
+        if self._for_update_config.conditions_set:
             query += " FOR UPDATE"
-            if self.for_update_config.of_tables:
+            if self._for_update_config.of_tables:
                 # Sorting is optional for the query itself but used for test consistency
-                query += f" OF {', '.join(sorted(self.for_update_config.of_tables))}"
-            if self.for_update_config.nowait:
+                query += f" OF {', '.join(sorted(self._for_update_config.of_tables))}"
+            if self._for_update_config.nowait:
                 query += " NOWAIT"
-            elif self.for_update_config.skip_locked:
+            elif self._for_update_config.skip_locked:
                 query += " SKIP LOCKED"
 
         return query, variables
