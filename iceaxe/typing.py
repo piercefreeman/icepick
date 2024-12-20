@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     )
     from iceaxe.comparison import FieldComparison, FieldComparisonGroup
     from iceaxe.functions import FunctionMetadata
-    from iceaxe.queries_str import QueryLiteral
 
 
 ALL_ENUM_TYPES = Type[Enum | StrEnum | IntEnum]
@@ -53,12 +52,6 @@ def is_comparison_group(obj: Any) -> TypeGuard[FieldComparisonGroup]:
     from iceaxe.comparison import FieldComparisonGroup
 
     return isinstance(obj, FieldComparisonGroup)
-
-
-def is_literal(obj: Any) -> TypeGuard[QueryLiteral]:
-    from iceaxe.queries_str import QueryLiteral
-
-    return isinstance(obj, QueryLiteral)
 
 
 def is_function_metadata(obj: Any) -> TypeGuard[FunctionMetadata]:
