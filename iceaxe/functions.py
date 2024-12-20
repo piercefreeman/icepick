@@ -114,7 +114,6 @@ class FunctionBuilder:
     ```python {{sticky: True}}
     from iceaxe import func
 
-    # In a query:
     query = select((
         User.name,
         func.count(User.id),
@@ -600,3 +599,62 @@ class FunctionBuilder:
 
 
 func = FunctionBuilder()
+"""
+A global instance of FunctionBuilder that provides SQL function operations for use in queries.
+This instance offers a comprehensive set of SQL functions including aggregates, string operations,
+mathematical functions, date/time manipulations, and type conversions.
+
+Available function categories:
+- Aggregate Functions: count, sum, avg, min, max, array_agg, string_agg
+- String Functions: lower, upper, length, trim, substring
+- Mathematical Functions: abs, round, ceil, floor, power, sqrt
+- Date/Time Functions: date_trunc, date_part, extract, age, date
+- Type Conversion: cast, to_char, to_number, to_timestamp
+
+```python {{sticky: True}}
+from iceaxe import func, select
+
+# Aggregate functions
+total_users = await conn.execute(select(func.count(User.id)))
+avg_salary = await conn.execute(select(func.avg(Employee.salary)))
+unique_statuses = await conn.execute(select(func.distinct(User.status)))
+
+# String operations
+users = await conn.execute(select((
+    User.id,
+    func.lower(User.name),
+    func.upper(User.email),
+    func.length(User.bio)
+)))
+
+# Date/time operations
+monthly_stats = await conn.execute(select((
+    func.date_trunc('month', Event.created_at),
+    func.count(Event.id)
+)).group_by(func.date_trunc('month', Event.created_at)))
+
+# Mathematical operations
+account_stats = await conn.execute(select((
+    Account.id,
+    func.abs(Account.balance),
+    func.ceil(Account.interest_rate)
+)))
+
+# Type conversions
+converted = await conn.execute(select((
+    func.cast(User.string_id, int),
+    func.to_char(User.created_at, 'YYYY-MM-DD'),
+    func.cast(User.status_str, UserStatus)
+)))
+
+# Complex aggregations
+department_stats = await conn.execute(
+    select((
+        Department.name,
+        func.array_agg(Employee.name),
+        func.string_agg(Employee.email, ','),
+        func.sum(Employee.salary)
+    )).group_by(Department.name)
+)
+```
+"""

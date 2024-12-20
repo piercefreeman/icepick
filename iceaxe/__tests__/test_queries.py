@@ -1,4 +1,4 @@
-from enum import Enum, IntEnum, StrEnum
+from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING, Literal
 
 import pytest
@@ -422,8 +422,8 @@ def test_allow_branching():
     query_1 = base_query.limit(1)
     query_2 = base_query.limit(2)
 
-    assert query_1.limit_value == 1
-    assert query_2.limit_value == 2
+    assert query_1._limit_value == 1
+    assert query_2._limit_value == 2
 
 
 def test_distinct_on():
