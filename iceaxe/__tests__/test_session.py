@@ -1,7 +1,7 @@
 from enum import StrEnum
 
-import pytest
 import asyncpg
+import pytest
 
 from iceaxe.__tests__.conf_models import ArtifactDemo, ComplexDemo, UserDemo
 from iceaxe.base import TableBase
@@ -778,10 +778,7 @@ async def test_for_update_prevents_concurrent_modification(db_connection: DBConn
     async with db_connection.transaction():
         # Lock the row with FOR UPDATE
         [locked_user] = await db_connection.exec(
-            QueryBuilder()
-            .select(UserDemo)
-            .where(UserDemo.id == user.id)
-            .for_update()
+            QueryBuilder().select(UserDemo).where(UserDemo.id == user.id).for_update()
         )
         assert locked_user.name == "John Doe"
 
@@ -797,17 +794,14 @@ async def test_for_update_prevents_concurrent_modification(db_connection: DBConn
             )
         )
         try:
-            # This should raise an error since we're using NOWAIT
-            await other_conn.exec(
-                QueryBuilder()
-                .select(UserDemo)
-                .where(UserDemo.id == user.id)
-                .for_update(nowait=True)
-            )
-            pytest.fail("Should have raised an error")
-        except asyncpg.exceptions.LockNotAvailableError:
-            # This is expected
-            pass
+            with pytest.raises(asyncpg.exceptions.LockNotAvailableError):
+                # This should raise an error since we're using NOWAIT
+                await other_conn.exec(
+                    QueryBuilder()
+                    .select(UserDemo)
+                    .where(UserDemo.id == user.id)
+                    .for_update(nowait=True)
+                )
         finally:
             await other_conn.conn.close()
 
@@ -866,7 +860,7 @@ async def test_for_update_of_with_join(db_connection: DBConnection):
     # Create test data
     user = UserDemo(name="John Doe", email="john@example.com")
     await db_connection.insert([user])
-    
+
     artifact = ArtifactDemo(title="Test Artifact", user_id=user.id)
     await db_connection.insert([artifact])
 
@@ -903,7 +897,7 @@ async def test_for_update_of_with_join(db_connection: DBConnection):
             assert other_user.name == "John Doe"
 
             # Should fail since artifact table is locked
-            try:
+            with pytest.raises(asyncpg.exceptions.LockNotAvailableError):
                 await other_conn.exec(
                     QueryBuilder()
                     .select(ArtifactDemo)
@@ -911,8 +905,5 @@ async def test_for_update_of_with_join(db_connection: DBConnection):
                     .for_update(nowait=True)
                 )
                 pytest.fail("Should have raised an error")
-            except asyncpg.exceptions.LockNotAvailableError:
-                # This is expected
-                pass
         finally:
             await other_conn.conn.close()
