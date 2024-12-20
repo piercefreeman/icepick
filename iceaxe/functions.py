@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Type, TypeVar, cast
+from typing import Any, Literal, Type, TypeVar, cast
 
 from iceaxe.base import (
     DBFieldClassDefinition,
@@ -13,6 +13,45 @@ from iceaxe.sql_types import get_python_to_sql_mapping
 from iceaxe.typing import is_column, is_function_metadata
 
 T = TypeVar("T")
+
+DATE_PART_FIELD = Literal[
+    "century",
+    "day",
+    "decade",
+    "dow",
+    "doy",
+    "epoch",
+    "hour",
+    "isodow",
+    "isoyear",
+    "microseconds",
+    "millennium",
+    "milliseconds",
+    "minute",
+    "month",
+    "quarter",
+    "second",
+    "timezone",
+    "timezone_hour",
+    "timezone_minute",
+    "week",
+    "year",
+]
+DATE_PRECISION = Literal[
+    "microseconds",
+    "milliseconds",
+    "second",
+    "minute",
+    "hour",
+    "day",
+    "week",
+    "month",
+    "quarter",
+    "year",
+    "decade",
+    "century",
+    "millennium",
+]
 
 
 class FunctionMetadata(ComparisonBase):
@@ -230,7 +269,7 @@ class FunctionBuilder:
         metadata.literal = QueryLiteral(f"abs({metadata.literal})")
         return cast(T, metadata)
 
-    def date_trunc(self, precision: str, field: T) -> T:
+    def date_trunc(self, precision: DATE_PRECISION, field: T) -> T:
         """
         Truncates a timestamp or interval value to specified precision.
 
@@ -249,7 +288,7 @@ class FunctionBuilder:
         )
         return cast(T, metadata)
 
-    def date_part(self, field: str, source: Any) -> int:
+    def date_part(self, field: DATE_PART_FIELD, source: Any) -> float:
         """
         Extracts a subfield from a date/time value.
 
@@ -264,9 +303,9 @@ class FunctionBuilder:
         """
         metadata = self._column_to_metadata(source)
         metadata.literal = QueryLiteral(f"date_part('{field}', {metadata.literal})")
-        return cast(int, metadata)
+        return cast(float, metadata)
 
-    def extract(self, field: str, source: Any) -> int:
+    def extract(self, field: DATE_PART_FIELD, source: Any) -> int:
         """
         Extracts a subfield from a date/time value using SQL standard syntax.
 
@@ -539,7 +578,7 @@ class FunctionBuilder:
         """
         metadata = self._column_to_metadata(field)
         metadata.literal = QueryLiteral(f"to_timestamp({metadata.literal}, '{format}')")
-        return cast(T, metadata)
+        return cast(datetime, metadata)
 
     def _column_to_metadata(self, field: Any) -> FunctionMetadata:
         """

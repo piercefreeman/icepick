@@ -529,11 +529,6 @@ def test_function_cast_enum():
         INACTIVE = "inactive"
         PENDING = "pending"
 
-    class UserRole(Enum):
-        ADMIN = "admin"
-        USER = "user"
-        GUEST = "guest"
-
     class UserLevel(IntEnum):
         BASIC = 1
         PREMIUM = 2
