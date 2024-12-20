@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, Type, TypeVar, cast
 
@@ -528,7 +529,7 @@ class FunctionBuilder:
         metadata.literal = QueryLiteral(f"to_number({metadata.literal}, '{format}')")
         return cast(float, metadata)
 
-    def to_timestamp(self, field: T, format: str) -> T:
+    def to_timestamp(self, field: Any, format: str) -> datetime:
         """
         Converts string to timestamp with format.
 
