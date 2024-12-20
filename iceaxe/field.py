@@ -101,9 +101,9 @@ class DBFieldInfo(FieldInfo):
         """
         Initialize a new DBFieldInfo instance with the given field configuration.
 
-        Args:
-            **kwargs: Keyword arguments that configure the field's behavior.
-                     Includes all standard Pydantic field options plus database-specific options.
+        :param kwargs: Keyword arguments that configure the field's behavior.
+            Includes all standard Pydantic field options plus database-specific options.
+
         """
         # The super call should persist all kwargs as _attributes_set
         # We're intentionally passing kwargs that we know aren't in the
@@ -134,7 +134,7 @@ class DBFieldInfo(FieldInfo):
     ):
         """
         Helper function to extend a Pydantic FieldInfo with database-specific attributes.
-        
+
         """
         return cls(
             primary_key=primary_key,
@@ -223,3 +223,22 @@ class DBFieldClassDefinition(Generic[T], ComparisonBase[T]):
 
 
 Field = __get_db_field()
+"""
+Create a new database field with optional database-specific configurations.
+
+This function extends Pydantic's Field with additional database functionality. It accepts
+all standard Pydantic Field parameters plus all the database-specific parameters defined
+in DBFieldInfo.
+
+```python {{sticky: True}}
+from iceaxe import Field
+from iceaxe.base import TableBase
+
+class User(TableBase):
+    id: int = Field(primary_key=True)
+    username: str = Field(unique=True, index=True)
+    settings: dict = Field(is_json=True, default_factory=dict)
+    department_id: int = Field(foreign_key="departments.id")
+```
+
+"""
