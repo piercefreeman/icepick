@@ -64,6 +64,31 @@ class EmployeeMetadata(TableBase):
     additional_info: dict[str, Any] = Field(is_json=True)
 
 
+class FunctionTestModel(TableBase):
+    id: int = Field(primary_key=True, default=None)
+    balance: float
+    created_at: str
+    birth_date: str
+    start_date: str
+    end_date: str
+    year: int
+    month: int
+    day: int
+    hour: int
+    minute: int
+    second: int
+    years: int
+    months: int
+    days: int
+    weeks: int
+    hours: int
+    minutes: int
+    seconds: int
+    name: str
+    balance_str: str
+    timestamp_str: str
+
+
 @contextmanager
 def run_profile(request):
     TESTS_ROOT = Path.cwd()

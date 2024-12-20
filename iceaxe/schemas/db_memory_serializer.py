@@ -36,6 +36,7 @@ from iceaxe.schemas.db_stubs import (
     DBType,
     DBTypePointer,
 )
+from iceaxe.sql_types import enum_to_name
 from iceaxe.typing import (
     ALL_ENUM_TYPES,
     DATE_TYPES,
@@ -327,7 +328,7 @@ class DatabaseHandler:
 
             return TypeDeclarationResponse(
                 custom_type=DBType(
-                    name=annotation.__name__.lower(),  # type: ignore
+                    name=enum_to_name(annotation),  # type: ignore
                     values=frozenset([value.value for value in annotation]),  # type: ignore
                     reference_columns=frozenset({(table.get_table_name(), key)}),
                 ),

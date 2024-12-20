@@ -1,15 +1,57 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar, cast
+from datetime import datetime
+from enum import Enum
+from typing import Any, Literal, Type, TypeVar, cast
 
 from iceaxe.base import (
     DBFieldClassDefinition,
 )
 from iceaxe.comparison import ComparisonBase
 from iceaxe.queries_str import QueryLiteral
+from iceaxe.sql_types import get_python_to_sql_mapping
 from iceaxe.typing import is_column, is_function_metadata
 
 T = TypeVar("T")
+
+DATE_PART_FIELD = Literal[
+    "century",
+    "day",
+    "decade",
+    "dow",
+    "doy",
+    "epoch",
+    "hour",
+    "isodow",
+    "isoyear",
+    "microseconds",
+    "millennium",
+    "milliseconds",
+    "minute",
+    "month",
+    "quarter",
+    "second",
+    "timezone",
+    "timezone_hour",
+    "timezone_minute",
+    "week",
+    "year",
+]
+DATE_PRECISION = Literal[
+    "microseconds",
+    "milliseconds",
+    "second",
+    "minute",
+    "hour",
+    "day",
+    "week",
+    "month",
+    "quarter",
+    "year",
+    "decade",
+    "century",
+    "millennium",
+]
 
 
 class FunctionMetadata(ComparisonBase):
@@ -210,6 +252,333 @@ class FunctionBuilder:
         metadata = self._column_to_metadata(field)
         metadata.literal = QueryLiteral(f"min({metadata.literal})")
         return cast(T, metadata)
+
+    def abs(self, field: T) -> T:
+        """
+        Creates an ABS function call to get the absolute value.
+
+        :param field: The numeric field to get the absolute value of
+        :return: A function metadata object preserving the input type
+
+        ```python {{sticky: True}}
+        # Get absolute value of balance
+        abs_balance = await conn.execute(select(func.abs(Account.balance)))
+        ```
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"abs({metadata.literal})")
+        return cast(T, metadata)
+
+    def date_trunc(self, precision: DATE_PRECISION, field: T) -> T:
+        """
+        Truncates a timestamp or interval value to specified precision.
+
+        :param precision: The precision to truncate to ('microseconds', 'milliseconds', 'second', 'minute', 'hour', 'day', 'week', 'month', 'quarter', 'year', 'decade', 'century', 'millennium')
+        :param field: The timestamp or interval field to truncate
+        :return: A function metadata object preserving the input type
+
+        ```python {{sticky: True}}
+        # Truncate timestamp to month
+        monthly = await conn.execute(select(func.date_trunc('month', User.created_at)))
+        ```
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(
+            f"date_trunc('{precision}', {metadata.literal})"
+        )
+        return cast(T, metadata)
+
+    def date_part(self, field: DATE_PART_FIELD, source: Any) -> float:
+        """
+        Extracts a subfield from a date/time value.
+
+        :param field: The subfield to extract ('century', 'day', 'decade', 'dow', 'doy', 'epoch', 'hour', 'isodow', 'isoyear', 'microseconds', 'millennium', 'milliseconds', 'minute', 'month', 'quarter', 'second', 'timezone', 'timezone_hour', 'timezone_minute', 'week', 'year')
+        :param source: The date/time field to extract from
+        :return: A function metadata object that resolves to an integer
+
+        ```python {{sticky: True}}
+        # Get month from timestamp
+        month = await conn.execute(select(func.date_part('month', User.created_at)))
+        ```
+        """
+        metadata = self._column_to_metadata(source)
+        metadata.literal = QueryLiteral(f"date_part('{field}', {metadata.literal})")
+        return cast(float, metadata)
+
+    def extract(self, field: DATE_PART_FIELD, source: Any) -> int:
+        """
+        Extracts a subfield from a date/time value using SQL standard syntax.
+
+        :param field: The subfield to extract ('century', 'day', 'decade', 'dow', 'doy', 'epoch', 'hour', 'isodow', 'isoyear', 'microseconds', 'millennium', 'milliseconds', 'minute', 'month', 'quarter', 'second', 'timezone', 'timezone_hour', 'timezone_minute', 'week', 'year')
+        :param source: The date/time field to extract from
+        :return: A function metadata object that resolves to an integer
+
+        ```python {{sticky: True}}
+        # Get year from timestamp
+        year = await conn.execute(select(func.extract('year', User.created_at)))
+        ```
+        """
+        metadata = self._column_to_metadata(source)
+        metadata.literal = QueryLiteral(f"extract({field} from {metadata.literal})")
+        return cast(int, metadata)
+
+    def age(self, timestamp: T, reference: T | None = None) -> T:
+        """
+        Calculates the difference between two timestamps.
+        If reference is not provided, current_date is used.
+
+        :param timestamp: The timestamp to calculate age from
+        :param reference: Optional reference timestamp (defaults to current_date)
+        :return: A function metadata object preserving the input type
+
+        ```python {{sticky: True}}
+        # Get age of a timestamp
+        age = await conn.execute(select(func.age(User.birth_date)))
+
+        # Get age between two timestamps
+        age_diff = await conn.execute(select(func.age(Event.end_time, Event.start_time)))
+        ```
+        """
+        metadata = self._column_to_metadata(timestamp)
+        if reference is not None:
+            ref_metadata = self._column_to_metadata(reference)
+            metadata.literal = QueryLiteral(
+                f"age({metadata.literal}, {ref_metadata.literal})"
+            )
+        else:
+            metadata.literal = QueryLiteral(f"age({metadata.literal})")
+        return cast(T, metadata)
+
+    def date(self, field: T) -> T:
+        """
+        Converts a timestamp to a date by dropping the time component.
+
+        :param field: The timestamp field to convert
+        :return: A function metadata object that resolves to a date
+
+        ```python {{sticky: True}}
+        # Get just the date part
+        event_date = await conn.execute(select(func.date(Event.timestamp)))
+        ```
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"date({metadata.literal})")
+        return cast(T, metadata)
+
+    # String Functions
+    def lower(self, field: T) -> T:
+        """
+        Converts string to lowercase.
+
+        :param field: The string field to convert
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"lower({metadata.literal})")
+        return cast(T, metadata)
+
+    def upper(self, field: T) -> T:
+        """
+        Converts string to uppercase.
+
+        :param field: The string field to convert
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"upper({metadata.literal})")
+        return cast(T, metadata)
+
+    def length(self, field: Any) -> int:
+        """
+        Returns length of string.
+
+        :param field: The string field to measure
+        :return: A function metadata object that resolves to an integer
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"length({metadata.literal})")
+        return cast(int, metadata)
+
+    def trim(self, field: T) -> T:
+        """
+        Removes whitespace from both ends of string.
+
+        :param field: The string field to trim
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"trim({metadata.literal})")
+        return cast(T, metadata)
+
+    def substring(self, field: T, start: int, length: int) -> T:
+        """
+        Extracts substring.
+
+        :param field: The string field to extract from
+        :param start: Starting position (1-based)
+        :param length: Number of characters to extract
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(
+            f"substring({metadata.literal} from {start} for {length})"
+        )
+        return cast(T, metadata)
+
+    # Mathematical Functions
+    def round(self, field: T) -> T:
+        """
+        Rounds to nearest integer.
+
+        :param field: The numeric field to round
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"round({metadata.literal})")
+        return cast(T, metadata)
+
+    def ceil(self, field: T) -> T:
+        """
+        Rounds up to nearest integer.
+
+        :param field: The numeric field to round up
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"ceil({metadata.literal})")
+        return cast(T, metadata)
+
+    def floor(self, field: T) -> T:
+        """
+        Rounds down to nearest integer.
+
+        :param field: The numeric field to round down
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"floor({metadata.literal})")
+        return cast(T, metadata)
+
+    def power(self, field: T, exponent: int | float) -> T:
+        """
+        Raises a number to the specified power.
+
+        :param field: The numeric field to raise
+        :param exponent: The power to raise to
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"power({metadata.literal}, {exponent})")
+        return cast(T, metadata)
+
+    def sqrt(self, field: T) -> T:
+        """
+        Calculates square root.
+
+        :param field: The numeric field to calculate square root of
+        :return: A function metadata object preserving the input type
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"sqrt({metadata.literal})")
+        return cast(T, metadata)
+
+    # Aggregate Functions
+    def array_agg(self, field: T) -> list[T]:
+        """
+        Collects values into an array.
+
+        :param field: The field to aggregate
+        :return: A function metadata object that resolves to a list
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"array_agg({metadata.literal})")
+        return cast(list[T], metadata)
+
+    def string_agg(self, field: Any, delimiter: str) -> str:
+        """
+        Concatenates values with delimiter.
+
+        :param field: The field to aggregate
+        :param delimiter: The delimiter to use between values
+        :return: A function metadata object that resolves to a string
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(
+            f"string_agg({metadata.literal}, '{delimiter}')"
+        )
+        return cast(str, metadata)
+
+    # Type Conversion Functions
+    def cast(self, field: Any, type_name: Type[T]) -> T:
+        """
+        Converts value to specified type.
+
+        :param field: The field to convert
+        :param type_name: The target Python type to cast to
+        :return: A function metadata object with the new type
+
+        ```python {{sticky: True}}
+        # Cast a string to integer
+        int_value = await conn.execute(select(func.cast(User.string_id, int)))
+
+        # Cast a float to string
+        str_value = await conn.execute(select(func.cast(Account.balance, str)))
+
+        # Cast a string to enum
+        status = await conn.execute(select(func.cast(User.status_str, UserStatus)))
+        ```
+        """
+
+        metadata = self._column_to_metadata(field)
+
+        # Special handling for enums
+        if issubclass(type_name, Enum):
+            metadata.literal = QueryLiteral(
+                f"cast({metadata.literal} as {type_name.__name__.lower()})"
+            )
+        else:
+            sql_type = get_python_to_sql_mapping().get(type_name)  # type: ignore
+            if not sql_type:
+                raise ValueError(f"Unsupported type for casting: {type_name}")
+            metadata.literal = QueryLiteral(f"cast({metadata.literal} as {sql_type})")
+
+        return cast(T, metadata)
+
+    def to_char(self, field: Any, format: str) -> str:
+        """
+        Converts value to string with format.
+
+        :param field: The field to convert
+        :param format: The format string
+        :return: A function metadata object that resolves to a string
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"to_char({metadata.literal}, '{format}')")
+        return cast(str, metadata)
+
+    def to_number(self, field: Any, format: str) -> float:
+        """
+        Converts string to number with format.
+
+        :param field: The string field to convert
+        :param format: The format string
+        :return: A function metadata object that resolves to a float
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"to_number({metadata.literal}, '{format}')")
+        return cast(float, metadata)
+
+    def to_timestamp(self, field: Any, format: str) -> datetime:
+        """
+        Converts string to timestamp with format.
+
+        :param field: The string field to convert
+        :param format: The format string
+        :return: A function metadata object that resolves to a timestamp
+        """
+        metadata = self._column_to_metadata(field)
+        metadata.literal = QueryLiteral(f"to_timestamp({metadata.literal}, '{format}')")
+        return cast(datetime, metadata)
 
     def _column_to_metadata(self, field: Any) -> FunctionMetadata:
         """
