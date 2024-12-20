@@ -40,25 +40,71 @@ class DBFieldInputs(_FieldInfoInputs, total=False):
 
 
 class DBFieldInfo(FieldInfo):
+    """
+    Extended field information for database fields, building upon Pydantic's FieldInfo.
+    This class adds database-specific attributes and functionality for field configuration
+    in SQL databases, particularly PostgreSQL.
+
+    This class is used internally by the Field constructor to store metadata about
+    database columns, including constraints, foreign keys, and PostgreSQL-specific
+    configurations.
+    """
+
     primary_key: bool = False
+    """
+    Indicates if this field serves as the primary key for the table.
+    When True, this field will be used as the unique identifier for rows.
+    """
 
-    # If the field is a primary key and has no default, it should autoincrement
     autoincrement: bool = False
+    """
+    Controls whether the field should automatically increment.
+    By default, this is True for primary key fields that have no default value set.
+    """
 
-    # Polymorphic customization of postgres parameters depending on the field type
     postgres_config: PostgresFieldBase | None = None
+    """
+    Custom PostgreSQL configuration for the field.
+    Allows for type-specific customization of PostgreSQL parameters.
+    """
 
-    # Link to another table (formatted like "table_name.column_name")
     foreign_key: str | None = None
+    """
+    Specifies a foreign key relationship to another table.
+    Format should be "table_name.column_name" if set.
+    """
 
-    # Value constraints
     unique: bool = False
+    """
+    When True, enforces that all values in this column must be unique.
+    Creates a unique constraint in the database.
+    """
+
     index: bool = False
+    """
+    When True, creates an index on this column to optimize query performance.
+    """
+
     check_expression: str | None = None
+    """
+    SQL expression for a CHECK constraint on this column.
+    Allows for custom validation rules at the database level.
+    """
 
     is_json: bool = False
+    """
+    Indicates if this field should be stored as JSON in the database.
+    When True, the field's value will be JSON serialized before storage.
+    """
 
     def __init__(self, **kwargs: Unpack[DBFieldInputs]):
+        """
+        Initialize a new DBFieldInfo instance with the given field configuration.
+
+        Args:
+            **kwargs: Keyword arguments that configure the field's behavior.
+                     Includes all standard Pydantic field options plus database-specific options.
+        """
         # The super call should persist all kwargs as _attributes_set
         # We're intentionally passing kwargs that we know aren't in the
         # base typehinted dict
@@ -86,6 +132,10 @@ class DBFieldInfo(FieldInfo):
         check_expression: str | None,
         is_json: bool,
     ):
+        """
+        Helper function to extend a Pydantic FieldInfo with database-specific attributes.
+        
+        """
         return cls(
             primary_key=primary_key,
             postgres_config=postgres_config,
