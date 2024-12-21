@@ -428,8 +428,7 @@ class QueryBuilder(Generic[P, QueryType]):
                 and not is_function_metadata(field)
             ):
                 raise ValueError(
-                    f"Invalid field type {
-                        field}. Must be:\n1. A column field\n2. A table\n3. A QueryLiteral\n4. A tuple of the above."
+                    f"Invalid field type {field}. Must be:\n1. A column field\n2. A table\n3. A QueryLiteral\n4. A tuple of the above."
                 )
 
         self._select_inner(all_fields)
@@ -630,8 +629,7 @@ class QueryBuilder(Generic[P, QueryType]):
         """
         if not is_comparison(on):
             raise ValueError(
-                f"Invalid join condition: {
-                    on}, should be MyTable.column == OtherTable.column"
+                f"Invalid join condition: {on}, should be MyTable.column == OtherTable.column"
             )
 
         table_name = QueryLiteral(table.get_table_name())
@@ -639,8 +637,7 @@ class QueryBuilder(Generic[P, QueryType]):
         comparison = QueryLiteral(on.comparison.value)
         on_right, _ = on.right.to_query()
 
-        join_sql = f"{join_type} JOIN {table_name} ON {
-            on_left} {comparison} {on_right}"
+        join_sql = f"{join_type} JOIN {table_name} ON {on_left} {comparison} {on_right}"
         self._join_clauses.append(join_sql)
         return self
 
@@ -965,8 +962,7 @@ class QueryBuilder(Generic[P, QueryType]):
             set_components = []
             for column, value in self._update_values:
                 column_token, _ = column.to_query()
-                set_components.append(f"{column_token} = ${
-                                      len(variables) + 1}")
+                set_components.append(f"{column_token} = ${len(variables) + 1}")
                 variables.append(value)
 
             set_clause = ", ".join(set_components)
@@ -992,8 +988,7 @@ class QueryBuilder(Generic[P, QueryType]):
         if self._group_by_fields:
             query += " GROUP BY "
             query += ", ".join(
-                f"{QueryIdentifier(field.root_model.get_table_name())}.{
-                    QueryIdentifier(field.key)}"
+                f"{QueryIdentifier(field.root_model.get_table_name())}.{QueryIdentifier(field.key)}"
                 for field in self._group_by_fields
             )
 
@@ -1011,8 +1006,7 @@ class QueryBuilder(Generic[P, QueryType]):
                     variables.append(having_condition.right)
                     having_value = QueryLiteral("$" + str(len(variables)))
 
-                query += f"{having_field} {
-                    having_condition.comparison.value} {having_value}"
+                query += f"{having_field} {having_condition.comparison.value} {having_value}"
 
         if self._order_by_clauses:
             query += " ORDER BY " + ", ".join(self._order_by_clauses)
