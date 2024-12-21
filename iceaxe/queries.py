@@ -46,6 +46,13 @@ SUPPORTED_SELECTS = (
 T = TypeVar("T", bound=SUPPORTED_SELECTS)
 T2 = TypeVar("T2", bound=SUPPORTED_SELECTS)
 T3 = TypeVar("T3", bound=SUPPORTED_SELECTS)
+T4 = TypeVar("T4", bound=SUPPORTED_SELECTS)
+T5 = TypeVar("T5", bound=SUPPORTED_SELECTS)
+T6 = TypeVar("T6", bound=SUPPORTED_SELECTS)
+T7 = TypeVar("T7", bound=SUPPORTED_SELECTS)
+T8 = TypeVar("T8", bound=SUPPORTED_SELECTS)
+T9 = TypeVar("T9", bound=SUPPORTED_SELECTS)
+T10 = TypeVar("T10", bound=SUPPORTED_SELECTS)
 Ts = TypeVarTuple("Ts")
 
 
@@ -157,26 +164,132 @@ class QueryBuilder(Generic[P, QueryType]):
 
     @overload
     def select(
-        self, fields: tuple[T | Type[T]]
+        self,
+        fields: tuple[T | Type[T]],
     ) -> QueryBuilder[tuple[T], Literal["SELECT"]]: ...
 
     @overload
     def select(
-        self, fields: tuple[T | Type[T], T2 | Type[T2]]
+        self,
+        fields: tuple[T | Type[T], T2 | Type[T2]],
     ) -> QueryBuilder[tuple[T, T2], Literal["SELECT"]]: ...
 
     @overload
     def select(
-        # TypeVarTuples only match the typing of one-or-more elements, so we also
-        # need a overloaded signature for 3 elements.
         self,
         fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]],
     ) -> QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]: ...
 
     @overload
     def select(
-        self, fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
-    ) -> QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]: ...
+        self,
+        fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4]],
+    ) -> QueryBuilder[tuple[T, T2, T3, T4], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4], T5 | Type[T5]
+        ],
+    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+        ],
+    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+        ],
+    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+        ],
+    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+            T9 | Type[T9],
+        ],
+    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9], Literal["SELECT"]]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+            T9 | Type[T9],
+            T10 | Type[T10],
+        ],
+    ) -> QueryBuilder[
+        tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]
+    ]: ...
+
+    @overload
+    def select(
+        self,
+        fields: tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+            T9 | Type[T9],
+            T10 | Type[T10],
+            *Ts,
+        ],
+    ) -> QueryBuilder[
+        tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10, *Ts], Literal["SELECT"]
+    ]: ...
 
     @allow_branching
     def select(
@@ -187,14 +300,89 @@ class QueryBuilder(Generic[P, QueryType]):
             | tuple[T | Type[T]]
             | tuple[T | Type[T], T2 | Type[T2]]
             | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]]
-            | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
+            | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4]]
+            | tuple[
+                T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4], T5 | Type[T5]
+            ]
+            | tuple[
+                T | Type[T],
+                T2 | Type[T2],
+                T3 | Type[T3],
+                T4 | Type[T4],
+                T5 | Type[T5],
+                T6 | Type[T6],
+            ]
+            | tuple[
+                T | Type[T],
+                T2 | Type[T2],
+                T3 | Type[T3],
+                T4 | Type[T4],
+                T5 | Type[T5],
+                T6 | Type[T6],
+                T7 | Type[T7],
+            ]
+            | tuple[
+                T | Type[T],
+                T2 | Type[T2],
+                T3 | Type[T3],
+                T4 | Type[T4],
+                T5 | Type[T5],
+                T6 | Type[T6],
+                T7 | Type[T7],
+                T8 | Type[T8],
+            ]
+            | tuple[
+                T | Type[T],
+                T2 | Type[T2],
+                T3 | Type[T3],
+                T4 | Type[T4],
+                T5 | Type[T5],
+                T6 | Type[T6],
+                T7 | Type[T7],
+                T8 | Type[T8],
+                T9 | Type[T9],
+            ]
+            | tuple[
+                T | Type[T],
+                T2 | Type[T2],
+                T3 | Type[T3],
+                T4 | Type[T4],
+                T5 | Type[T5],
+                T6 | Type[T6],
+                T7 | Type[T7],
+                T8 | Type[T8],
+                T9 | Type[T9],
+                T10 | Type[T10],
+            ]
+            | tuple[
+                T | Type[T],
+                T2 | Type[T2],
+                T3 | Type[T3],
+                T4 | Type[T4],
+                T5 | Type[T5],
+                T6 | Type[T6],
+                T7 | Type[T7],
+                T8 | Type[T8],
+                T9 | Type[T9],
+                T10 | Type[T10],
+                *Ts,
+            ]
         ),
     ) -> (
         QueryBuilder[T, Literal["SELECT"]]
         | QueryBuilder[tuple[T], Literal["SELECT"]]
         | QueryBuilder[tuple[T, T2], Literal["SELECT"]]
         | QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]
-        | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4, T5], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4, T5, T6], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9], Literal["SELECT"]]
+        | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]]
+        | QueryBuilder[
+            tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10, *Ts], Literal["SELECT"]
+        ]
     ):
         """
         Creates a SELECT query to fetch data from the database.
@@ -818,9 +1006,7 @@ class QueryBuilder(Generic[P, QueryType]):
                     variables.append(having_condition.right)
                     having_value = QueryLiteral("$" + str(len(variables)))
 
-                query += (
-                    f"{having_field} {having_condition.comparison.value} {having_value}"
-                )
+                query += f"{having_field} {having_condition.comparison.value} {having_value}"
 
         if self._order_by_clauses:
             query += " ORDER BY " + ", ".join(self._order_by_clauses)
@@ -940,8 +1126,117 @@ def select(
 
 @overload
 def select(
-    fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts],
-) -> QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]: ...
+    fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]],
+) -> QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4]],
+) -> QueryBuilder[tuple[T, T2, T3, T4], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4], T5 | Type[T5]
+    ],
+) -> QueryBuilder[tuple[T, T2, T3, T4, T5], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T],
+        T2 | Type[T2],
+        T3 | Type[T3],
+        T4 | Type[T4],
+        T5 | Type[T5],
+        T6 | Type[T6],
+    ],
+) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T],
+        T2 | Type[T2],
+        T3 | Type[T3],
+        T4 | Type[T4],
+        T5 | Type[T5],
+        T6 | Type[T6],
+        T7 | Type[T7],
+    ],
+) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T],
+        T2 | Type[T2],
+        T3 | Type[T3],
+        T4 | Type[T4],
+        T5 | Type[T5],
+        T6 | Type[T6],
+        T7 | Type[T7],
+        T8 | Type[T8],
+    ],
+) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T],
+        T2 | Type[T2],
+        T3 | Type[T3],
+        T4 | Type[T4],
+        T5 | Type[T5],
+        T6 | Type[T6],
+        T7 | Type[T7],
+        T8 | Type[T8],
+        T9 | Type[T9],
+    ],
+) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T],
+        T2 | Type[T2],
+        T3 | Type[T3],
+        T4 | Type[T4],
+        T5 | Type[T5],
+        T6 | Type[T6],
+        T7 | Type[T7],
+        T8 | Type[T8],
+        T9 | Type[T9],
+        T10 | Type[T10],
+    ],
+) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]]: ...
+
+
+@overload
+def select(
+    fields: tuple[
+        T | Type[T],
+        T2 | Type[T2],
+        T3 | Type[T3],
+        T4 | Type[T4],
+        T5 | Type[T5],
+        T6 | Type[T6],
+        T7 | Type[T7],
+        T8 | Type[T8],
+        T9 | Type[T9],
+        T10 | Type[T10],
+        *Ts,
+    ],
+) -> QueryBuilder[
+    tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10, *Ts], Literal["SELECT"]
+]: ...
 
 
 def select(
@@ -950,13 +1245,88 @@ def select(
         | Type[T]
         | tuple[T | Type[T]]
         | tuple[T | Type[T], T2 | Type[T2]]
-        | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], *Ts]
+        | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3]]
+        | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4]]
+        | tuple[T | Type[T], T2 | Type[T2], T3 | Type[T3], T4 | Type[T4], T5 | Type[T5]]
+        | tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+        ]
+        | tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+        ]
+        | tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+        ]
+        | tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+            T9 | Type[T9],
+        ]
+        | tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+            T9 | Type[T9],
+            T10 | Type[T10],
+        ]
+        | tuple[
+            T | Type[T],
+            T2 | Type[T2],
+            T3 | Type[T3],
+            T4 | Type[T4],
+            T5 | Type[T5],
+            T6 | Type[T6],
+            T7 | Type[T7],
+            T8 | Type[T8],
+            T9 | Type[T9],
+            T10 | Type[T10],
+            *Ts,
+        ]
     ),
 ) -> (
     QueryBuilder[T, Literal["SELECT"]]
     | QueryBuilder[tuple[T], Literal["SELECT"]]
     | QueryBuilder[tuple[T, T2], Literal["SELECT"]]
-    | QueryBuilder[tuple[T, T2, T3, *Ts], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4, T5], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4, T5, T6], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9], Literal["SELECT"]]
+    | QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]]
+    | QueryBuilder[
+        tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10, *Ts], Literal["SELECT"]
+    ]
 ):
     """
     Creates a SELECT query to fetch data from the database. This is a shortcut function that creates
