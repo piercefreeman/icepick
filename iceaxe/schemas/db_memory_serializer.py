@@ -383,7 +383,8 @@ class DatabaseHandler:
                 )
             else:
                 raise ValueError(
-                    f"JSON fields must have Field(is_json=True) specified: {annotation}"
+                    f"JSON fields must have Field(is_json=True) specified: {annotation}\n"
+                    f"Column: {table.__name__}.{key}"
                 )
 
         raise ValueError(f"Unsupported column type: {annotation}")

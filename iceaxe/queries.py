@@ -1006,7 +1006,9 @@ class QueryBuilder(Generic[P, QueryType]):
                     variables.append(having_condition.right)
                     having_value = QueryLiteral("$" + str(len(variables)))
 
-                query += f"{having_field} {having_condition.comparison.value} {having_value}"
+                query += (
+                    f"{having_field} {having_condition.comparison.value} {having_value}"
+                )
 
         if self._order_by_clauses:
             query += " ORDER BY " + ", ".join(self._order_by_clauses)

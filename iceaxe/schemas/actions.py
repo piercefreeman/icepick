@@ -6,6 +6,7 @@ from typing import Any, Callable, Literal, overload
 from pydantic import BaseModel
 
 from iceaxe.logging import LOGGER
+from iceaxe.queries_str import QueryIdentifier
 from iceaxe.session import DBConnection
 from iceaxe.sql_types import ColumnType, ConstraintType
 
@@ -130,12 +131,13 @@ class DatabaseActions:
 
         """
         assert_is_safe_sql_identifier(table_name)
+        table = QueryIdentifier(table_name)
 
         await self._record_signature(
             self.add_table,
             dict(table_name=table_name),
             f"""
-            CREATE TABLE "{table_name}" ();
+            CREATE TABLE {table} ();
             """,
         )
 
@@ -146,12 +148,13 @@ class DatabaseActions:
 
         """
         assert_is_safe_sql_identifier(table_name)
+        table = QueryIdentifier(table_name)
 
         await self._record_signature(
             self.drop_table,
             dict(table_name=table_name),
             f"""
-            DROP TABLE "{table_name}"
+            DROP TABLE {table}
             """,
         )
 
@@ -192,6 +195,9 @@ class DatabaseActions:
         if custom_data_type:
             assert_is_safe_sql_identifier(custom_data_type)
 
+        table = QueryIdentifier(table_name)
+        column = QueryIdentifier(column_name)
+
         column_type = self._get_column_type(
             explicit_data_type=explicit_data_type,
             explicit_data_is_list=explicit_data_is_list,
@@ -208,8 +214,8 @@ class DatabaseActions:
                 custom_data_type=custom_data_type,
             ),
             f"""
-            ALTER TABLE "{table_name}"
-            ADD COLUMN {column_name} {column_type}
+            ALTER TABLE {table}
+            ADD COLUMN {column} {column_type}
             """,
         )
 
@@ -222,12 +228,15 @@ class DatabaseActions:
         assert_is_safe_sql_identifier(table_name)
         assert_is_safe_sql_identifier(column_name)
 
+        table = QueryIdentifier(table_name)
+        column = QueryIdentifier(column_name)
+
         await self._record_signature(
             self.drop_column,
             dict(table_name=table_name, column_name=column_name),
             f"""
-            ALTER TABLE "{table_name}"
-            DROP COLUMN {column_name}
+            ALTER TABLE {table}
+            DROP COLUMN {column}
             """,
         )
 
@@ -242,6 +251,10 @@ class DatabaseActions:
         assert_is_safe_sql_identifier(old_column_name)
         assert_is_safe_sql_identifier(new_column_name)
 
+        table = QueryIdentifier(table_name)
+        old_column = QueryIdentifier(old_column_name)
+        new_column = QueryIdentifier(new_column_name)
+
         await self._record_signature(
             self.rename_column,
             dict(
@@ -250,8 +263,8 @@ class DatabaseActions:
                 new_column_name=new_column_name,
             ),
             f"""
-            ALTER TABLE "{table_name}"
-            RENAME COLUMN {old_column_name} TO {new_column_name}
+            ALTER TABLE {table}
+            RENAME COLUMN {old_column} TO {new_column}
             """,
         )
 
@@ -285,6 +298,9 @@ class DatabaseActions:
         if custom_data_type:
             assert_is_safe_sql_identifier(custom_data_type)
 
+        table = QueryIdentifier(table_name)
+        column = QueryIdentifier(column_name)
+
         column_type = self._get_column_type(
             explicit_data_type=explicit_data_type,
             explicit_data_is_list=explicit_data_is_list,
@@ -301,8 +317,8 @@ class DatabaseActions:
                 custom_data_type=custom_data_type,
             ),
             f"""
-            ALTER TABLE "{table_name}"
-            MODIFY COLUMN {column_name} {column_type}
+            ALTER TABLE {table}
+            MODIFY COLUMN {column} {column_type}
             """,
         )
 
@@ -361,8 +377,9 @@ class DatabaseActions:
         for column_name in columns:
             assert_is_safe_sql_identifier(column_name)
 
-        columns_formatted = ", ".join(columns)
-        sql = f'ALTER TABLE "{table_name}" ADD CONSTRAINT {constraint_name} '
+        table = QueryIdentifier(table_name)
+        columns_formatted = ", ".join(str(QueryIdentifier(col)) for col in columns)
+        sql = f"ALTER TABLE {table} ADD CONSTRAINT {constraint_name} "
 
         if constraint == ConstraintType.PRIMARY_KEY:
             sql += f"PRIMARY KEY ({columns_formatted})"
@@ -376,8 +393,11 @@ class DatabaseActions:
             for column_name in constraint_args.target_columns:
                 assert_is_safe_sql_identifier(column_name)
 
-            ref_cols_formatted = ", ".join(constraint_args.target_columns)
-            sql += f'FOREIGN KEY ({columns_formatted}) REFERENCES "{constraint_args.target_table}" ({ref_cols_formatted})'
+            target_table = QueryIdentifier(constraint_args.target_table)
+            ref_cols_formatted = ", ".join(
+                str(QueryIdentifier(col)) for col in constraint_args.target_columns
+            )
+            sql += f"FOREIGN KEY ({columns_formatted}) REFERENCES {target_table} ({ref_cols_formatted})"
         elif constraint == ConstraintType.UNIQUE:
             sql += f"UNIQUE ({columns_formatted})"
         elif constraint == ConstraintType.CHECK:
@@ -414,6 +434,9 @@ class DatabaseActions:
         assert_is_safe_sql_identifier(table_name)
         assert_is_safe_sql_identifier(constraint_name)
 
+        table = QueryIdentifier(table_name)
+        constraint = QueryIdentifier(constraint_name)
+
         await self._record_signature(
             self.drop_constraint,
             dict(
@@ -421,8 +444,8 @@ class DatabaseActions:
                 constraint_name=constraint_name,
             ),
             f"""
-            ALTER TABLE "{table_name}"
-            DROP CONSTRAINT {constraint_name}
+            ALTER TABLE {table}
+            DROP CONSTRAINT {constraint}
             """,
         )
 
@@ -442,8 +465,9 @@ class DatabaseActions:
         for column_name in columns:
             assert_is_safe_sql_identifier(column_name)
 
-        columns_formatted = ", ".join([f'"{column_name}"' for column_name in columns])
-        sql = f'CREATE INDEX {index_name} ON "{table_name}" ({columns_formatted});'
+        table = QueryIdentifier(table_name)
+        columns_formatted = ", ".join(str(QueryIdentifier(col)) for col in columns)
+        sql = f"CREATE INDEX {index_name} ON {table} ({columns_formatted});"
         await self._record_signature(
             self.add_index,
             dict(
@@ -466,7 +490,9 @@ class DatabaseActions:
         assert_is_safe_sql_identifier(table_name)
         assert_is_safe_sql_identifier(index_name)
 
-        sql = f'ALTER TABLE "{table_name}" DROP INDEX {index_name};'
+        index = QueryIdentifier(index_name)
+
+        sql = f"DROP INDEX {index};"
         await self._record_signature(
             self.drop_index,
             dict(
@@ -484,12 +510,15 @@ class DatabaseActions:
         assert_is_safe_sql_identifier(table_name)
         assert_is_safe_sql_identifier(column_name)
 
+        table = QueryIdentifier(table_name)
+        column = QueryIdentifier(column_name)
+
         await self._record_signature(
             self.add_not_null,
             dict(table_name=table_name, column_name=column_name),
             f"""
-            ALTER TABLE "{table_name}"
-            ALTER COLUMN {column_name}
+            ALTER TABLE {table}
+            ALTER COLUMN {column}
             SET NOT NULL
             """,
         )
@@ -503,12 +532,15 @@ class DatabaseActions:
         assert_is_safe_sql_identifier(table_name)
         assert_is_safe_sql_identifier(column_name)
 
+        table = QueryIdentifier(table_name)
+        column = QueryIdentifier(column_name)
+
         await self._record_signature(
             self.drop_not_null,
             dict(table_name=table_name, column_name=column_name),
             f"""
-            ALTER TABLE "{table_name}"
-            ALTER COLUMN {column_name}
+            ALTER TABLE {table}
+            ALTER COLUMN {column}
             DROP NOT NULL
             """,
         )
@@ -520,12 +552,13 @@ class DatabaseActions:
         """
         assert_is_safe_sql_identifier(type_name)
 
+        type_identifier = QueryIdentifier(type_name)
         formatted_values = format_sql_values(values)
         await self._record_signature(
             self.add_type,
             dict(type_name=type_name, values=values),
             f"""
-            CREATE TYPE {type_name} AS ENUM ({formatted_values})
+            CREATE TYPE {type_identifier} AS ENUM ({formatted_values})
             """,
         )
 
@@ -535,6 +568,7 @@ class DatabaseActions:
 
         """
         assert_is_safe_sql_identifier(type_name)
+        type_identifier = QueryIdentifier(type_name)
 
         sql_commands: list[str] = []
         for value in values:
@@ -543,7 +577,7 @@ class DatabaseActions:
             formatted_value = format_sql_values([value])
             sql_commands.append(
                 f"""
-            ALTER TYPE "{type_name}" ADD VALUE {formatted_value};
+            ALTER TYPE {type_identifier} ADD VALUE {formatted_value};
             """
             )
 
@@ -580,13 +614,16 @@ class DatabaseActions:
             assert_is_safe_sql_identifier(table_name)
             assert_is_safe_sql_identifier(column_name)
 
+        type_identifier = QueryIdentifier(type_name)
+        old_type_identifier = QueryIdentifier(f"{type_name}_old")
         values_to_remove = format_sql_values(values)
+
         column_modifications = ";\n".join(
             [
                 (
                     # The "USING" param is required for enum migration
-                    f'EXECUTE \'ALTER TABLE "{table_name}" ALTER COLUMN {column_name} TYPE "{type_name}"'
-                    f" USING {column_name}::text::{type_name}'"
+                    f"EXECUTE 'ALTER TABLE {QueryIdentifier(table_name)} ALTER COLUMN {QueryIdentifier(column_name)} TYPE {type_identifier}"
+                    f" USING {QueryIdentifier(column_name)}::text::{type_identifier}'"
                 )
                 for table_name, column_name in target_columns
             ]
@@ -603,21 +640,21 @@ class DatabaseActions:
                 vals text;
             BEGIN
                 -- Move the current enum to a temporary type
-                EXECUTE 'ALTER TYPE "{type_name}" RENAME TO "{type_name}_old"';
+                EXECUTE 'ALTER TYPE {type_identifier} RENAME TO {old_type_identifier}';
 
                 -- Retrieve all current enum values except those to be excluded
                 SELECT string_agg('''' || unnest || '''', ', ' ORDER BY unnest) INTO vals
-                FROM unnest(enum_range(NULL::{type_name}_old)) AS unnest
+                FROM unnest(enum_range(NULL::{old_type_identifier})) AS unnest
                 WHERE unnest NOT IN ({values_to_remove});
 
                 -- Create and populate our new type with the desired changes
-                EXECUTE format('CREATE TYPE "{type_name}" AS ENUM (%s)', vals);
+                EXECUTE format('CREATE TYPE {type_identifier} AS ENUM (%s)', vals);
 
                 -- Switch over affected columns to the new type
                 {column_modifications}
 
                 -- Drop the old type
-                EXECUTE 'DROP TYPE "{type_name}_old"';
+                EXECUTE 'DROP TYPE {old_type_identifier}';
             END $$;
             """,
         )
@@ -628,12 +665,13 @@ class DatabaseActions:
 
         """
         assert_is_safe_sql_identifier(type_name)
+        type_identifier = QueryIdentifier(type_name)
 
         await self._record_signature(
             self.drop_type,
             dict(type_name=type_name),
             f"""
-            DROP TYPE "{type_name}"
+            DROP TYPE {type_identifier}
             """,
         )
 
@@ -701,7 +739,13 @@ class DatabaseActions:
                 LOGGER.debug(f"Executing migration SQL: {sql_query}")
 
                 self.prod_sqls.append(sql_query)
-                await self.db_connection.conn.execute(sql_query)
+
+                try:
+                    await self.db_connection.conn.execute(sql_query)
+                except Exception as e:
+                    # Default errors typically don't include context on the failing SQL
+                    LOGGER.error(f"Error executing migration SQL: {sql_query}")
+                    raise e
 
     def add_comment(self, text: str, previous_line: bool = False):
         """
