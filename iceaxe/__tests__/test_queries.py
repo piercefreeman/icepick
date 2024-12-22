@@ -25,13 +25,16 @@ def test_select():
 
 def test_select_single_field():
     new_query = QueryBuilder().select(UserDemo.email)
-    assert new_query.build() == ('SELECT "userdemo"."email" FROM "userdemo"', [])
+    assert new_query.build() == (
+        'SELECT "userdemo"."email" AS "userdemo_email" FROM "userdemo"',
+        [],
+    )
 
 
 def test_select_multiple_fields():
     new_query = QueryBuilder().select((UserDemo.id, UserDemo.name, UserDemo.email))
     assert new_query.build() == (
-        'SELECT "userdemo"."id", "userdemo"."name", "userdemo"."email" FROM "userdemo"',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS "userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo"',
         [],
     )
 
@@ -39,7 +42,7 @@ def test_select_multiple_fields():
 def test_where():
     new_query = QueryBuilder().select(UserDemo.id).where(UserDemo.id > 0)
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" WHERE "userdemo"."id" > $1',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" WHERE "userdemo"."id" > $1',
         [0],
     )
 
@@ -49,7 +52,7 @@ def test_where_columns():
         QueryBuilder().select(UserDemo.id).where(UserDemo.name == UserDemo.email)
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" WHERE "userdemo"."name" = "userdemo"."email"',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" WHERE "userdemo"."name" = "userdemo"."email"',
         [],
     )
 
@@ -61,7 +64,7 @@ def test_multiple_where_conditions():
         .where(UserDemo.id > 0, UserDemo.name == "John")
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" WHERE "userdemo"."id" > $1 AND "userdemo"."name" = $2',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" WHERE "userdemo"."id" > $1 AND "userdemo"."name" = $2',
         [0, "John"],
     )
 
@@ -69,7 +72,7 @@ def test_multiple_where_conditions():
 def test_order_by():
     new_query = QueryBuilder().select(UserDemo.id).order_by(UserDemo.id, "DESC")
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" ORDER BY "userdemo"."id" DESC',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" ORDER BY "userdemo"."id" DESC',
         [],
     )
 
@@ -82,7 +85,7 @@ def test_multiple_order_by():
         .order_by(UserDemo.name, "ASC")
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" ORDER BY "userdemo"."id" DESC, "userdemo"."name" ASC',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" ORDER BY "userdemo"."id" DESC, "userdemo"."name" ASC',
         [],
     )
 
@@ -94,7 +97,7 @@ def test_join():
         .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id)
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id", "artifactdemo"."title" FROM "userdemo" INNER JOIN artifactdemo ON "userdemo"."id" = "artifactdemo"."user_id"',
+        'SELECT "userdemo"."id" AS "userdemo_id", "artifactdemo"."title" AS "artifactdemo_title" FROM "userdemo" INNER JOIN "artifactdemo" ON "userdemo"."id" = "artifactdemo"."user_id"',
         [],
     )
 
@@ -106,25 +109,31 @@ def test_left_join():
         .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, "LEFT")
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id", "artifactdemo"."title" FROM "userdemo" LEFT JOIN artifactdemo ON "userdemo"."id" = "artifactdemo"."user_id"',
+        'SELECT "userdemo"."id" AS "userdemo_id", "artifactdemo"."title" AS "artifactdemo_title" FROM "userdemo" LEFT JOIN "artifactdemo" ON "userdemo"."id" = "artifactdemo"."user_id"',
         [],
     )
 
 
 def test_limit():
     new_query = QueryBuilder().select(UserDemo.id).limit(10)
-    assert new_query.build() == ('SELECT "userdemo"."id" FROM "userdemo" LIMIT 10', [])
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" LIMIT 10',
+        [],
+    )
 
 
 def test_offset():
     new_query = QueryBuilder().select(UserDemo.id).offset(5)
-    assert new_query.build() == ('SELECT "userdemo"."id" FROM "userdemo" OFFSET 5', [])
+    assert new_query.build() == (
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" OFFSET 5',
+        [],
+    )
 
 
 def test_limit_and_offset():
     new_query = QueryBuilder().select(UserDemo.id).limit(10).offset(5)
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" LIMIT 10 OFFSET 5',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" LIMIT 10 OFFSET 5',
         [],
     )
 
@@ -136,7 +145,7 @@ def test_group_by():
         .group_by(UserDemo.name)
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."name", count("userdemo"."id") AS aggregate_0 FROM "userdemo" GROUP BY "userdemo"."name"',
+        'SELECT "userdemo"."name" AS "userdemo_name", count("userdemo"."id") AS aggregate_0 FROM "userdemo" GROUP BY "userdemo"."name"',
         [],
     )
 
@@ -149,7 +158,7 @@ def test_update():
         .where(UserDemo.id == 1)
     )
     assert new_query.build() == (
-        'UPDATE "userdemo" SET "userdemo"."name" = $1 WHERE "userdemo"."id" = $2',
+        'UPDATE "userdemo" SET name = $1 WHERE "userdemo"."id" = $2',
         ["John", 1],
     )
 
@@ -355,7 +364,7 @@ def test_and_group():
         )
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" WHERE ("userdemo"."name" = "userdemo"."email" AND "userdemo"."id" > $1)',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" WHERE ("userdemo"."name" = "userdemo"."email" AND "userdemo"."id" > $1)',
         [0],
     )
 
@@ -372,7 +381,7 @@ def test_or_group():
         )
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" WHERE ("userdemo"."name" = "userdemo"."email" OR "userdemo"."id" > $1)',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" WHERE ("userdemo"."name" = "userdemo"."email" OR "userdemo"."id" > $1)',
         [0],
     )
 
@@ -392,7 +401,7 @@ def test_nested_and_or_group():
         )
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" FROM "userdemo" WHERE (("userdemo"."name" = "userdemo"."email" OR "userdemo"."id" > $1) AND "userdemo"."id" < $2)',
+        'SELECT "userdemo"."id" AS "userdemo_id" FROM "userdemo" WHERE (("userdemo"."name" = "userdemo"."email" OR "userdemo"."id" > $1) AND "userdemo"."id" < $2)',
         [0, 10],
     )
 
@@ -433,7 +442,7 @@ def test_distinct_on():
         .distinct_on(UserDemo.name)
     )
     assert new_query.build() == (
-        'SELECT DISTINCT ON ("userdemo"."name") "userdemo"."name", "userdemo"."email" FROM "userdemo"',
+        'SELECT DISTINCT ON ("userdemo"."name") "userdemo"."name" AS "userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo"',
         [],
     )
 
@@ -445,7 +454,7 @@ def test_distinct_on_multiple_fields():
         .distinct_on(UserDemo.name, UserDemo.email)
     )
     assert new_query.build() == (
-        'SELECT DISTINCT ON ("userdemo"."name", "userdemo"."email") "userdemo"."name", "userdemo"."email" FROM "userdemo"',
+        'SELECT DISTINCT ON ("userdemo"."name", "userdemo"."email") "userdemo"."name" AS "userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo"',
         [],
     )
 
@@ -509,12 +518,10 @@ def test_for_update_multiple_of():
         .for_update(of=(ArtifactDemo,))
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email", '
-        '"artifactdemo"."id" as "artifactdemo_id", "artifactdemo"."title" as '
-        '"artifactdemo_title", "artifactdemo"."user_id" as "artifactdemo_user_id" '
-        'FROM "userdemo" INNER JOIN artifactdemo ON "userdemo"."id" = "artifactdemo"."user_id" '
-        "FOR UPDATE OF artifactdemo, userdemo",
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS "userdemo_name", "userdemo"."email" AS "userdemo_email", '
+        '"artifactdemo"."id" AS "artifactdemo_id", "artifactdemo"."title" AS "artifactdemo_title", "artifactdemo"."user_id" AS "artifactdemo_user_id" '
+        'FROM "userdemo" INNER JOIN "artifactdemo" ON "userdemo"."id" = "artifactdemo"."user_id" '
+        'FOR UPDATE OF "artifactdemo", "userdemo"',
         [],
     )
 

@@ -145,9 +145,12 @@ cdef list process_values(
 
                 elif raw_is_column:
                     try:
-                        item = value[select_raw.key]
+                        # Use the table-qualified column name
+                        table_name = select_raw.root_model.get_table_name()
+                        column_name = select_raw.key
+                        item = value[f"{table_name}_{column_name}"]
                     except KeyError:
-                        raise KeyError(f"Key '{select_raw.key}' not found in value.")
+                        raise KeyError(f"Key '{table_name}_{column_name}' not found in value.")
                     result_value[j] = <PyObject*>item
                     Py_INCREF(item)
 

@@ -11,7 +11,6 @@ from pydantic.main import _model_construction
 from pydantic_core import PydanticUndefined
 
 from iceaxe.field import DBFieldClassDefinition, DBFieldInfo, Field
-from iceaxe.queries_str import QueryIdentifier, QueryLiteral
 
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(PydanticField,))
@@ -310,26 +309,3 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
             for field, info in cls.model_fields.items()
             if field not in INTERNAL_TABLE_FIELDS
         }
-
-    @classmethod
-    def select_fields(cls) -> QueryLiteral:
-        """
-        Generate a SQL-safe string for selecting all fields from this table.
-        The output format is "{table_name}.{field_name} as {table_name}_{field_name}"
-        for each field, which ensures proper field name resolution in complex queries.
-
-        :return: SQL-safe field selection string
-
-        ```python {{sticky: True}}
-        # For a User class with fields 'id' and 'name':
-        User.select_fields()
-        # Returns: '"users"."id" as "users_id", "users"."name" as "users_name"'
-        ```
-        """
-        table_token = QueryIdentifier(cls.get_table_name())
-        select_fields: list[str] = []
-        for field_name in cls.get_client_fields():
-            field_token = QueryIdentifier(field_name)
-            return_field = QueryIdentifier(f"{cls.get_table_name()}_{field_name}")
-            select_fields.append(f"{table_token}.{field_token} as {return_field}")
-        return QueryLiteral(", ".join(select_fields))

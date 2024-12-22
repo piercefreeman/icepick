@@ -89,6 +89,20 @@ class FunctionTestModel(TableBase):
     timestamp_str: str
 
 
+class TestModelA(TableBase):
+    id: int = Field(primary_key=True, default=None)
+    name: str
+    description: str
+    code: str = Field(unique=True)
+
+
+class TestModelB(TableBase):
+    id: int = Field(primary_key=True, default=None)
+    name: str
+    category: str
+    code: str = Field(unique=True)
+
+
 @contextmanager
 def run_profile(request):
     TESTS_ROOT = Path.cwd()
