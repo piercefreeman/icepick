@@ -202,6 +202,12 @@ T = TypeVar("T")
 
 
 class DBFieldClassDefinition(Generic[T], ComparisonBase[T]):
+    """
+    The returned model when users access a field directly from
+    the table class, e.g. `User.id`
+
+    """
+
     root_model: Type["TableBase"]
     key: str
     field_definition: DBFieldInfo

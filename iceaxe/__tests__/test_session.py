@@ -3,7 +3,13 @@ from enum import StrEnum
 import asyncpg
 import pytest
 
-from iceaxe.__tests__.conf_models import ArtifactDemo, ComplexDemo, UserDemo
+from iceaxe.__tests__.conf_models import (
+    ArtifactDemo,
+    ComplexDemo,
+    TestModelA,
+    TestModelB,
+    UserDemo,
+)
 from iceaxe.base import TableBase
 from iceaxe.field import Field
 from iceaxe.functions import func
@@ -907,3 +913,49 @@ async def test_for_update_of_with_join(db_connection: DBConnection):
                 pytest.fail("Should have raised an error")
         finally:
             await other_conn.conn.close()
+
+
+@pytest.mark.asyncio
+async def test_select_same_column_name_from_different_tables(
+    db_connection: DBConnection,
+):
+    """
+    Test that we can correctly select and distinguish between columns with the same name
+    from different tables. Both tables have a 'name' column to verify proper disambiguation.
+    """
+    # Create tables first
+    await db_connection.conn.execute("DROP TABLE IF EXISTS testmodela")
+    await db_connection.conn.execute("DROP TABLE IF EXISTS testmodelb")
+    await create_all(db_connection, [TestModelA, TestModelB])
+
+    # Create test data
+    model_a = TestModelA(name="Name from A", description="Description A", code="ABC123")
+    model_b = TestModelB(
+        name="Name from B",
+        category="Category B",
+        code="ABC123",  # Same code to join on
+    )
+    await db_connection.insert([model_a, model_b])
+
+    # Select both name columns and verify they are correctly distinguished
+    query = (
+        QueryBuilder()
+        .select((TestModelA.name, TestModelB.name))
+        .join(TestModelB, TestModelA.code == TestModelB.code)
+    )
+    result = await db_connection.exec(query)
+
+    # The first column should be TestModelA's name, and the second should be TestModelB's name
+    assert len(result) == 1
+    assert result[0] == ("Name from A", "Name from B")
+
+    # Verify the order is maintained when selecting in reverse
+    query_reversed = (
+        QueryBuilder()
+        .select((TestModelB.name, TestModelA.name))
+        .join(TestModelA, TestModelA.code == TestModelB.code)
+    )
+    result_reversed = await db_connection.exec(query_reversed)
+
+    assert len(result_reversed) == 1
+    assert result_reversed[0] == ("Name from B", "Name from A")

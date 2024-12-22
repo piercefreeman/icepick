@@ -14,5 +14,6 @@ from .queries import (
     select as select,
     update as update,
 )
+from .queries_str import sql as sql
 from .session import DBConnection as DBConnection
 from .typing import column as column

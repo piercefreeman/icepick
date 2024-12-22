@@ -14,8 +14,8 @@ from iceaxe.comparison import ComparisonGroupType, FieldComparison, FieldCompari
 from iceaxe.functions import FunctionMetadata
 from iceaxe.queries_str import (
     QueryElementBase,
-    QueryIdentifier,
     QueryLiteral,
+    sql,
 )
 from iceaxe.typing import (
     ALL_ENUM_TYPES,
@@ -87,7 +87,7 @@ class ForUpdateConfig:
 
     nowait: bool = False
     skip_locked: bool = False
-    of_tables: set[str] = dataclass_field(default_factory=set)
+    of_tables: set[QueryElementBase] = dataclass_field(default_factory=set)
     conditions_set: bool = False
 
 
@@ -144,12 +144,12 @@ class QueryBuilder(Generic[P, QueryType]):
         self._offset_value: int | None = None
         self._group_by_fields: list[DBFieldClassDefinition] = []
         self._having_conditions: list[FieldComparison] = []
-        self._distinct_on_fields: list[QueryLiteral] = []
+        self._distinct_on_fields: list[QueryElementBase] = []
         self._for_update_config: ForUpdateConfig = ForUpdateConfig()
 
         # Query specific params
         self._update_values: list[tuple[DBFieldClassDefinition, Any]] = []
-        self._select_fields: list[QueryLiteral] = []
+        self._select_fields: list[QueryElementBase] = []
         self._select_raw: list[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata
         ] = []
@@ -455,14 +455,12 @@ class QueryBuilder(Generic[P, QueryType]):
             self._main_model = representative_field.original_field.root_model
 
         for field in fields:
-            if is_column(field):
-                literal, _ = field.to_query()
-                self._select_fields.append(literal)
-                self._select_raw.append(field)
-            elif is_base_table(field):
-                self._select_fields.append(field.select_fields())
+            if is_column(field) or is_base_table(field):
+                self._select_fields.append(sql.select(field))
                 self._select_raw.append(field)
             elif is_function_metadata(field):
+                # We need to handle func.* functions explicitly here versus delegating
+                # to a SQLGenerator because we need to own the local name aliasing logic
                 field.local_name = f"aggregate_{self._select_aggregate_count}"
                 local_name_token = QueryLiteral(field.local_name)
 
@@ -632,12 +630,11 @@ class QueryBuilder(Generic[P, QueryType]):
                 f"Invalid join condition: {on}, should be MyTable.column == OtherTable.column"
             )
 
-        table_name = QueryLiteral(table.get_table_name())
         on_left, _ = on.left.to_query()
         comparison = QueryLiteral(on.comparison.value)
         on_right, _ = on.right.to_query()
 
-        join_sql = f"{join_type} JOIN {table_name} ON {on_left} {comparison} {on_right}"
+        join_sql = f"{join_type} JOIN {sql(table)} ON {on_left} {comparison} {on_right}"
         self._join_clauses.append(join_sql)
         return self
 
@@ -832,15 +829,11 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        valid_fields: list[QueryLiteral] = []
-
         for field in fields:
             if not is_column(field):
                 raise ValueError(f"Invalid field for group by: {field}")
-            literal, _ = field.to_query()
-            valid_fields.append(literal)
+            self._distinct_on_fields.append(sql(field))
 
-        self._distinct_on_fields = valid_fields
         return self
 
     @allow_branching
@@ -902,9 +895,7 @@ class QueryBuilder(Generic[P, QueryType]):
         # Combine options, with True taking precedence for flags
         self._for_update_config.nowait |= nowait
         self._for_update_config.skip_locked |= skip_locked
-        self._for_update_config.of_tables |= {
-            model.get_table_name() for model in (of or [])
-        }
+        self._for_update_config.of_tables |= {sql(model) for model in (of or [])}
 
         self._for_update_config.conditions_set = True
         return self
@@ -942,7 +933,6 @@ class QueryBuilder(Generic[P, QueryType]):
             if not self._main_model:
                 raise ValueError("No model selected for query")
 
-            primary_table = QueryIdentifier(self._main_model.get_table_name())
             fields = [str(field) for field in self._select_fields]
             query = "SELECT"
 
@@ -952,27 +942,25 @@ class QueryBuilder(Generic[P, QueryType]):
                 ]
                 query += f" DISTINCT ON ({', '.join(distinct_fields)})"
 
-            query += f" {', '.join(fields)} FROM {primary_table}"
+            query += f" {', '.join(fields)} FROM {sql(self._main_model)}"
         elif self._query_type == "UPDATE":
             if not self._main_model:
                 raise ValueError("No model selected for query")
 
-            primary_table = QueryIdentifier(self._main_model.get_table_name())
-
             set_components = []
             for column, value in self._update_values:
-                column_token, _ = column.to_query()
-                set_components.append(f"{column_token} = ${len(variables) + 1}")
+                # Unlike in SELECT commands, we can't specify the table name attached
+                # to columns, since they all need to be tied to the same table.
+                set_components.append(f"{column.key} = ${len(variables) + 1}")
                 variables.append(value)
 
             set_clause = ", ".join(set_components)
-            query = f"UPDATE {primary_table} SET {set_clause}"
+            query = f"UPDATE {sql(self._main_model)} SET {set_clause}"
         elif self._query_type == "DELETE":
             if not self._main_model:
                 raise ValueError("No model selected for query")
 
-            primary_table = QueryIdentifier(self._main_model.get_table_name())
-            query = f"DELETE FROM {primary_table}"
+            query = f"DELETE FROM {sql(self._main_model)}"
 
         if self._join_clauses:
             query += " " + " ".join(self._join_clauses)
@@ -987,10 +975,7 @@ class QueryBuilder(Generic[P, QueryType]):
 
         if self._group_by_fields:
             query += " GROUP BY "
-            query += ", ".join(
-                f"{QueryIdentifier(field.root_model.get_table_name())}.{QueryIdentifier(field.key)}"
-                for field in self._group_by_fields
-            )
+            query += ", ".join(str(sql(field)) for field in self._group_by_fields)
 
         if self._having_conditions:
             query += " HAVING "
@@ -1006,7 +991,9 @@ class QueryBuilder(Generic[P, QueryType]):
                     variables.append(having_condition.right)
                     having_value = QueryLiteral("$" + str(len(variables)))
 
-                query += f"{having_field} {having_condition.comparison.value} {having_value}"
+                query += (
+                    f"{having_field} {having_condition.comparison.value} {having_value}"
+                )
 
         if self._order_by_clauses:
             query += " ORDER BY " + ", ".join(self._order_by_clauses)
@@ -1021,7 +1008,7 @@ class QueryBuilder(Generic[P, QueryType]):
             query += " FOR UPDATE"
             if self._for_update_config.of_tables:
                 # Sorting is optional for the query itself but used for test consistency
-                query += f" OF {', '.join(sorted(self._for_update_config.of_tables))}"
+                query += f" OF {', '.join([str(table) for table in sorted(self._for_update_config.of_tables)])}"
             if self._for_update_config.nowait:
                 query += " NOWAIT"
             elif self._for_update_config.skip_locked:

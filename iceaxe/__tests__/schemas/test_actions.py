@@ -682,3 +682,114 @@ async def test_drop_type(
         await db_connection.conn.execute(
             "CREATE TABLE test_table (id SERIAL PRIMARY KEY, test_column test_type)"
         )
+
+
+@pytest.mark.asyncio
+async def test_add_index_single_column(
+    db_backed_actions: DatabaseActions,
+    db_connection: DBConnection,
+):
+    # Create a table with a column to index
+    await db_connection.conn.execute(
+        "CREATE TABLE test_table (id SERIAL PRIMARY KEY, test_column VARCHAR)"
+    )
+
+    # Add an index on a single column
+    await db_backed_actions.add_index(
+        "test_table",
+        ["test_column"],
+        "test_single_column_index",
+    )
+
+    # Verify the index exists by querying the system catalog
+    result = await db_connection.conn.fetch(
+        """
+        SELECT indexname, indexdef
+        FROM pg_indexes
+        WHERE tablename = 'test_table'
+        AND indexname = 'test_single_column_index'
+        """
+    )
+    assert len(result) == 1
+    assert (
+        "CREATE INDEX test_single_column_index ON public.test_table USING btree (test_column)"
+        in result[0]["indexdef"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_index_multiple_columns(
+    db_backed_actions: DatabaseActions,
+    db_connection: DBConnection,
+):
+    # Create a table with multiple columns to index
+    await db_connection.conn.execute(
+        """
+        CREATE TABLE test_table (
+            id SERIAL PRIMARY KEY,
+            first_column VARCHAR,
+            second_column INTEGER
+        )
+        """
+    )
+
+    # Add an index on multiple columns
+    await db_backed_actions.add_index(
+        "test_table",
+        ["first_column", "second_column"],
+        "test_multi_column_index",
+    )
+
+    # Verify the index exists and includes both columns
+    result = await db_connection.conn.fetch(
+        """
+        SELECT indexname, indexdef
+        FROM pg_indexes
+        WHERE tablename = 'test_table'
+        AND indexname = 'test_multi_column_index'
+        """
+    )
+    assert len(result) == 1
+    assert (
+        "CREATE INDEX test_multi_column_index ON public.test_table USING btree (first_column, second_column)"
+        in result[0]["indexdef"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_drop_index(
+    db_backed_actions: DatabaseActions,
+    db_connection: DBConnection,
+):
+    # Create a table and add an index
+    await db_connection.conn.execute(
+        "CREATE TABLE test_table (id SERIAL PRIMARY KEY, test_column VARCHAR)"
+    )
+    await db_connection.conn.execute(
+        "CREATE INDEX test_index ON test_table (test_column)"
+    )
+
+    # Verify the index exists before dropping
+    result = await db_connection.conn.fetch(
+        """
+        SELECT indexname
+        FROM pg_indexes
+        WHERE tablename = 'test_table'
+        AND indexname = 'test_index'
+        """
+    )
+    assert len(result) == 1
+
+    # Drop the index
+    await db_backed_actions.drop_index("test_table", "test_index")
+
+    # Verify the index no longer exists
+    result = await db_connection.conn.fetch(
+        """
+        SELECT indexname
+        FROM pg_indexes
+        WHERE tablename = 'test_table'
+        AND indexname = 'test_index'
+        """
+    )
+    assert len(result) == 0

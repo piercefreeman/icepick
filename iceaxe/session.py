@@ -18,11 +18,11 @@ from iceaxe.base import TableBase
 from iceaxe.logging import LOGGER
 from iceaxe.queries import (
     QueryBuilder,
-    QueryIdentifier,
     is_base_table,
     is_column,
     is_function_metadata,
 )
+from iceaxe.queries_str import QueryIdentifier
 from iceaxe.session_optimized import optimize_exec_casting
 
 P = ParamSpec("P")
@@ -163,7 +163,13 @@ class DBConnection:
         """
         sql_text, variables = query.build()
         LOGGER.debug(f"Executing query: {sql_text} with variables: {variables}")
-        values = await self.conn.fetch(sql_text, *variables)
+        try:
+            values = await self.conn.fetch(sql_text, *variables)
+        except Exception as e:
+            LOGGER.error(
+                f"Error executing query: {sql_text} with variables: {variables}"
+            )
+            raise e
 
         if query._query_type == "SELECT":
             # Pre-cache the select types for better performance
