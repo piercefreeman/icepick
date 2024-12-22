@@ -10,7 +10,7 @@ from iceaxe.__tests__.conf_models import (
     TestModelB,
     UserDemo,
 )
-from iceaxe.alias import alias
+from iceaxe.alias_values import alias
 from iceaxe.base import TableBase
 from iceaxe.field import Field
 from iceaxe.functions import func

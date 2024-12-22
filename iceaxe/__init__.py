@@ -1,3 +1,4 @@
+from .alias_values import alias as alias
 from .base import (
     IndexConstraint as IndexConstraint,
     TableBase as TableBase,
