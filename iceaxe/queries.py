@@ -582,17 +582,29 @@ class QueryBuilder(Generic[P, QueryType]):
             .order_by(User.last_name, "ASC")
             .order_by(User.first_name, "ASC")
         )
+
+        # Sort by aggregate function
+        query = (
+            QueryBuilder()
+            .select((User.name, func.count(Post.id)))
+            .join(Post, Post.user_id == User.id)
+            .group_by(User.name)
+            .order_by(func.count(Post.id), "DESC")
+        )
         ```
 
-        :param field: The field to sort by (must be a column)
+        :param field: The field to sort by (must be a column or function)
         :param direction: The sort direction, either "ASC" or "DESC"
         :return: The QueryBuilder instance for method chaining
 
         """
-        if not is_column(field):
+        if is_column(field):
+            field_token, _ = field.to_query()
+        elif is_function_metadata(field):
+            field_token = field.literal
+        else:
             raise ValueError(f"Invalid order by field: {field}")
 
-        field_token, _ = field.to_query()
         self._order_by_clauses.append(f"{field_token} {direction}")
         return self
 
@@ -757,14 +769,12 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        valid_fields: list[DBFieldClassDefinition] = []
 
         for field in fields:
             if not is_column(field):
                 raise ValueError(f"Invalid field for group by: {field}")
-            valid_fields.append(field)
+            self._group_by_fields.append(field)
 
-        self._group_by_fields = valid_fields
         return self
 
     @allow_branching
@@ -801,14 +811,11 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        valid_conditions: list[FieldComparison] = []
-
         for condition in conditions:
             if not is_comparison(condition):
                 raise ValueError(f"Invalid having condition: {condition}")
-            valid_conditions.append(condition)
+            self._having_conditions.append(condition)
 
-        self._having_conditions += valid_conditions
         return self
 
     @allow_branching

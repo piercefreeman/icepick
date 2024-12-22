@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING, Literal
 
 import pytest
 
-from iceaxe.__tests__.conf_models import ArtifactDemo, FunctionTestModel, UserDemo
+from iceaxe.__tests__.conf_models import (
+    ArtifactDemo,
+    Employee,
+    FunctionDemoModel,
+    UserDemo,
+)
 from iceaxe.functions import func
 from iceaxe.queries import QueryBuilder, and_, or_, select
 
@@ -193,65 +198,65 @@ def test_function_distinct():
 
 
 def test_function_abs():
-    new_query = QueryBuilder().select(func.abs(FunctionTestModel.balance))
+    new_query = QueryBuilder().select(func.abs(FunctionDemoModel.balance))
     assert new_query.build() == (
-        'SELECT abs("functiontestmodel"."balance") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT abs("functiondemomodel"."balance") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
 
 def test_function_date_trunc():
     new_query = QueryBuilder().select(
-        func.date_trunc("month", FunctionTestModel.created_at)
+        func.date_trunc("month", FunctionDemoModel.created_at)
     )
     assert new_query.build() == (
-        'SELECT date_trunc(\'month\', "functiontestmodel"."created_at") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT date_trunc(\'month\', "functiondemomodel"."created_at") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
 
 def test_function_date_part():
     new_query = QueryBuilder().select(
-        func.date_part("year", FunctionTestModel.created_at)
+        func.date_part("year", FunctionDemoModel.created_at)
     )
     assert new_query.build() == (
-        'SELECT date_part(\'year\', "functiontestmodel"."created_at") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT date_part(\'year\', "functiondemomodel"."created_at") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
 
 def test_function_extract():
     new_query = QueryBuilder().select(
-        func.extract("month", FunctionTestModel.created_at)
+        func.extract("month", FunctionDemoModel.created_at)
     )
     assert new_query.build() == (
-        'SELECT extract(month from "functiontestmodel"."created_at") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT extract(month from "functiondemomodel"."created_at") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
 
 def test_function_age():
     # Test age with single argument
-    new_query = QueryBuilder().select(func.age(FunctionTestModel.birth_date))
+    new_query = QueryBuilder().select(func.age(FunctionDemoModel.birth_date))
     assert new_query.build() == (
-        'SELECT age("functiontestmodel"."birth_date") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT age("functiondemomodel"."birth_date") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
     # Test age with two arguments
     new_query = QueryBuilder().select(
-        func.age(FunctionTestModel.end_date, FunctionTestModel.start_date)
+        func.age(FunctionDemoModel.end_date, FunctionDemoModel.start_date)
     )
     assert new_query.build() == (
-        'SELECT age("functiontestmodel"."end_date", "functiontestmodel"."start_date") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT age("functiondemomodel"."end_date", "functiondemomodel"."start_date") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
 
 def test_function_date():
-    new_query = QueryBuilder().select(func.date(FunctionTestModel.created_at))
+    new_query = QueryBuilder().select(func.date(FunctionDemoModel.created_at))
     assert new_query.build() == (
-        'SELECT date("functiontestmodel"."created_at") AS aggregate_0 FROM "functiontestmodel"',
+        'SELECT date("functiondemomodel"."created_at") AS aggregate_0 FROM "functiondemomodel"',
         [],
     )
 
@@ -260,74 +265,74 @@ def test_function_transformations():
     # Test string functions
     new_query = QueryBuilder().select(
         (
-            func.lower(FunctionTestModel.name),
-            func.upper(FunctionTestModel.name),
-            func.length(FunctionTestModel.name),
-            func.trim(FunctionTestModel.name),
-            func.substring(FunctionTestModel.name, 1, 3),
+            func.lower(FunctionDemoModel.name),
+            func.upper(FunctionDemoModel.name),
+            func.length(FunctionDemoModel.name),
+            func.trim(FunctionDemoModel.name),
+            func.substring(FunctionDemoModel.name, 1, 3),
         )
     )
     assert new_query.build() == (
-        'SELECT lower("functiontestmodel"."name") AS aggregate_0, '
-        'upper("functiontestmodel"."name") AS aggregate_1, '
-        'length("functiontestmodel"."name") AS aggregate_2, '
-        'trim("functiontestmodel"."name") AS aggregate_3, '
-        'substring("functiontestmodel"."name" from 1 for 3) AS aggregate_4 '
-        'FROM "functiontestmodel"',
+        'SELECT lower("functiondemomodel"."name") AS aggregate_0, '
+        'upper("functiondemomodel"."name") AS aggregate_1, '
+        'length("functiondemomodel"."name") AS aggregate_2, '
+        'trim("functiondemomodel"."name") AS aggregate_3, '
+        'substring("functiondemomodel"."name" from 1 for 3) AS aggregate_4 '
+        'FROM "functiondemomodel"',
         [],
     )
 
     # Test mathematical functions
     new_query = QueryBuilder().select(
         (
-            func.round(FunctionTestModel.balance),
-            func.ceil(FunctionTestModel.balance),
-            func.floor(FunctionTestModel.balance),
-            func.power(FunctionTestModel.balance, 2),
-            func.sqrt(FunctionTestModel.balance),
+            func.round(FunctionDemoModel.balance),
+            func.ceil(FunctionDemoModel.balance),
+            func.floor(FunctionDemoModel.balance),
+            func.power(FunctionDemoModel.balance, 2),
+            func.sqrt(FunctionDemoModel.balance),
         )
     )
     assert new_query.build() == (
-        'SELECT round("functiontestmodel"."balance") AS aggregate_0, '
-        'ceil("functiontestmodel"."balance") AS aggregate_1, '
-        'floor("functiontestmodel"."balance") AS aggregate_2, '
-        'power("functiontestmodel"."balance", 2) AS aggregate_3, '
-        'sqrt("functiontestmodel"."balance") AS aggregate_4 '
-        'FROM "functiontestmodel"',
+        'SELECT round("functiondemomodel"."balance") AS aggregate_0, '
+        'ceil("functiondemomodel"."balance") AS aggregate_1, '
+        'floor("functiondemomodel"."balance") AS aggregate_2, '
+        'power("functiondemomodel"."balance", 2) AS aggregate_3, '
+        'sqrt("functiondemomodel"."balance") AS aggregate_4 '
+        'FROM "functiondemomodel"',
         [],
     )
 
     # Test aggregate functions
     new_query = QueryBuilder().select(
         (
-            func.array_agg(FunctionTestModel.name),
-            func.string_agg(FunctionTestModel.name, ","),
+            func.array_agg(FunctionDemoModel.name),
+            func.string_agg(FunctionDemoModel.name, ","),
         )
     )
     assert new_query.build() == (
-        'SELECT array_agg("functiontestmodel"."name") AS aggregate_0, '
-        'string_agg("functiontestmodel"."name", \',\') AS aggregate_1 '
-        'FROM "functiontestmodel"',
+        'SELECT array_agg("functiondemomodel"."name") AS aggregate_0, '
+        'string_agg("functiondemomodel"."name", \',\') AS aggregate_1 '
+        'FROM "functiondemomodel"',
         [],
     )
 
     # Test type conversion functions
     new_query = QueryBuilder().select(
         (
-            func.cast(FunctionTestModel.balance, int),
-            func.cast(FunctionTestModel.name, UserStatus),
-            func.to_char(FunctionTestModel.created_at, "YYYY-MM-DD"),
-            func.to_number(FunctionTestModel.balance_str, "999999.99"),
-            func.to_timestamp(FunctionTestModel.timestamp_str, "YYYY-MM-DD HH24:MI:SS"),
+            func.cast(FunctionDemoModel.balance, int),
+            func.cast(FunctionDemoModel.name, UserStatus),
+            func.to_char(FunctionDemoModel.created_at, "YYYY-MM-DD"),
+            func.to_number(FunctionDemoModel.balance_str, "999999.99"),
+            func.to_timestamp(FunctionDemoModel.timestamp_str, "YYYY-MM-DD HH24:MI:SS"),
         )
     )
     assert new_query.build() == (
-        'SELECT cast("functiontestmodel"."balance" as integer) AS aggregate_0, '
-        'cast("functiontestmodel"."name" as userstatus) AS aggregate_1, '
-        'to_char("functiontestmodel"."created_at", \'YYYY-MM-DD\') AS aggregate_2, '
-        'to_number("functiontestmodel"."balance_str", \'999999.99\') AS aggregate_3, '
-        'to_timestamp("functiontestmodel"."timestamp_str", \'YYYY-MM-DD HH24:MI:SS\') AS aggregate_4 '
-        'FROM "functiontestmodel"',
+        'SELECT cast("functiondemomodel"."balance" as integer) AS aggregate_0, '
+        'cast("functiondemomodel"."name" as userstatus) AS aggregate_1, '
+        'to_char("functiondemomodel"."created_at", \'YYYY-MM-DD\') AS aggregate_2, '
+        'to_number("functiondemomodel"."balance_str", \'999999.99\') AS aggregate_3, '
+        'to_timestamp("functiondemomodel"."timestamp_str", \'YYYY-MM-DD HH24:MI:SS\') AS aggregate_4 '
+        'FROM "functiondemomodel"',
         [],
     )
 
@@ -542,17 +547,42 @@ def test_function_cast_enum():
         VIP = 3
 
     # Test casting to StrEnum
-    new_query = QueryBuilder().select(func.cast(FunctionTestModel.name, UserStatus))
+    new_query = QueryBuilder().select(func.cast(FunctionDemoModel.name, UserStatus))
     assert new_query.build() == (
-        'SELECT cast("functiontestmodel"."name" as userstatus) AS aggregate_0 '
-        'FROM "functiontestmodel"',
+        'SELECT cast("functiondemomodel"."name" as userstatus) AS aggregate_0 '
+        'FROM "functiondemomodel"',
         [],
     )
 
     # Test casting to IntEnum
-    new_query = QueryBuilder().select(func.cast(FunctionTestModel.balance, UserLevel))
+    new_query = QueryBuilder().select(func.cast(FunctionDemoModel.balance, UserLevel))
     assert new_query.build() == (
-        'SELECT cast("functiontestmodel"."balance" as userlevel) AS aggregate_0 '
-        'FROM "functiontestmodel"',
+        'SELECT cast("functiondemomodel"."balance" as userlevel) AS aggregate_0 '
+        'FROM "functiondemomodel"',
+        [],
+    )
+
+
+def test_multiple_group_by():
+    new_query = (
+        QueryBuilder()
+        .select(
+            (
+                Employee.department,
+                Employee.last_name,
+                func.count(Employee.id),
+                func.avg(Employee.salary),
+            )
+        )
+        .group_by(Employee.department)
+        .group_by(Employee.last_name)
+    )
+    assert new_query.build() == (
+        'SELECT "employee"."department" AS "employee_department", '
+        '"employee"."last_name" AS "employee_last_name", '
+        'count("employee"."id") AS aggregate_0, '
+        'avg("employee"."salary") AS aggregate_1 '
+        'FROM "employee" '
+        'GROUP BY "employee"."department", "employee"."last_name"',
         [],
     )

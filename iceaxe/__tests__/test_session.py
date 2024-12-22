@@ -6,8 +6,8 @@ import pytest
 from iceaxe.__tests__.conf_models import (
     ArtifactDemo,
     ComplexDemo,
-    TestModelA,
-    TestModelB,
+    DemoModelA,
+    DemoModelB,
     UserDemo,
 )
 from iceaxe.alias import alias
@@ -926,13 +926,13 @@ async def test_select_same_column_name_from_different_tables(
     from different tables. Both tables have a 'name' column to verify proper disambiguation.
     """
     # Create tables first
-    await db_connection.conn.execute("DROP TABLE IF EXISTS testmodela")
-    await db_connection.conn.execute("DROP TABLE IF EXISTS testmodelb")
-    await create_all(db_connection, [TestModelA, TestModelB])
+    await db_connection.conn.execute("DROP TABLE IF EXISTS demomodela")
+    await db_connection.conn.execute("DROP TABLE IF EXISTS demomodelb")
+    await create_all(db_connection, [DemoModelA, DemoModelB])
 
     # Create test data
-    model_a = TestModelA(name="Name from A", description="Description A", code="ABC123")
-    model_b = TestModelB(
+    model_a = DemoModelA(name="Name from A", description="Description A", code="ABC123")
+    model_b = DemoModelB(
         name="Name from B",
         category="Category B",
         code="ABC123",  # Same code to join on
@@ -942,20 +942,20 @@ async def test_select_same_column_name_from_different_tables(
     # Select both name columns and verify they are correctly distinguished
     query = (
         QueryBuilder()
-        .select((TestModelA.name, TestModelB.name))
-        .join(TestModelB, TestModelA.code == TestModelB.code)
+        .select((DemoModelA.name, DemoModelB.name))
+        .join(DemoModelB, DemoModelA.code == DemoModelB.code)
     )
     result = await db_connection.exec(query)
 
-    # The first column should be TestModelA's name, and the second should be TestModelB's name
+    # The first column should be DemoModelA's name, and the second should be DemoModelB's name
     assert len(result) == 1
     assert result[0] == ("Name from A", "Name from B")
 
     # Verify the order is maintained when selecting in reverse
     query_reversed = (
         QueryBuilder()
-        .select((TestModelB.name, TestModelA.name))
-        .join(TestModelA, TestModelA.code == TestModelB.code)
+        .select((DemoModelB.name, DemoModelA.name))
+        .join(DemoModelA, DemoModelA.code == DemoModelB.code)
     )
     result_reversed = await db_connection.exec(query_reversed)
 
@@ -991,3 +991,40 @@ async def test_select_with_text_and_alias(db_connection: DBConnection):
     assert result[0][0].name == "John Doe"
     assert result[0][0].email == "john@example.com"
     assert result[0][1] == 1  # The count should be 1
+
+
+@pytest.mark.asyncio
+async def test_select_with_order_by_func_count(db_connection: DBConnection):
+    # Create users with different numbers of artifacts
+    users = [
+        UserDemo(name="John", email="john@example.com"),
+        UserDemo(name="Jane", email="jane@example.com"),
+        UserDemo(name="Bob", email="bob@example.com"),
+    ]
+    await db_connection.insert(users)
+
+    # Create artifacts with different counts per user
+    artifacts = [
+        ArtifactDemo(title="John's Post 1", user_id=users[0].id),
+        ArtifactDemo(title="John's Post 2", user_id=users[0].id),
+        ArtifactDemo(title="Jane's Post", user_id=users[1].id),
+        # Bob has no posts
+    ]
+    await db_connection.insert(artifacts)
+
+    query = (
+        QueryBuilder()
+        .select((UserDemo.name, func.count(ArtifactDemo.id)))
+        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, "LEFT")
+        .group_by(UserDemo.name)
+        .order_by(func.count(ArtifactDemo.id), "DESC")
+    )
+    result = await db_connection.exec(query)
+
+    assert len(result) == 3
+    # John has 2 posts
+    assert result[0] == ("John", 2)
+    # Jane has 1 post
+    assert result[1] == ("Jane", 1)
+    # Bob has 0 posts
+    assert result[2] == ("Bob", 0)
