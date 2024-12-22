@@ -1,7 +1,7 @@
 from typing import Any, List, Tuple
 from iceaxe.base import TableBase
 from iceaxe.queries import FunctionMetadata
-from iceaxe.alias import Alias
+from iceaxe.alias_values import Alias
 from json import loads as json_loads
 from cpython.ref cimport PyObject
 from cpython.object cimport PyObject_GetItem

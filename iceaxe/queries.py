@@ -5,7 +5,7 @@ from dataclasses import dataclass, field as dataclass_field
 from functools import wraps
 from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, cast, overload
 
-from iceaxe.alias import Alias
+from iceaxe.alias_values import Alias
 from iceaxe.base import (
     DBFieldClassDefinition,
     DBModelMetaclass,
