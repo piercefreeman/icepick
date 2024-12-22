@@ -13,6 +13,7 @@ from typing import (
 from uuid import UUID
 
 if TYPE_CHECKING:
+    from iceaxe.alias import Alias
     from iceaxe.base import (
         DBFieldClassDefinition,
         TableBase,
@@ -58,6 +59,12 @@ def is_function_metadata(obj: Any) -> TypeGuard[FunctionMetadata]:
     from iceaxe.functions import FunctionMetadata
 
     return isinstance(obj, FunctionMetadata)
+
+
+def is_alias(obj: Any) -> TypeGuard[Alias]:
+    from iceaxe.alias import Alias
+
+    return isinstance(obj, Alias)
 
 
 def column(obj: T) -> DBFieldClassDefinition[T]:
