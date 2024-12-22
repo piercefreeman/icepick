@@ -2,7 +2,7 @@ from iceaxe.base import TableBase
 from iceaxe.queries_str import QueryIdentifier, QueryLiteral, sql
 
 
-class TestModel(TableBase):
+class DemoModel(TableBase):
     field_one: str
     field_two: int
 
@@ -130,44 +130,44 @@ def test_query_element_sortable():
 
 def test_sql_call_column():
     """Test SQLGenerator's __call__ method with a column."""
-    result = sql(TestModel.field_one)
+    result = sql(DemoModel.field_one)
     assert isinstance(result, QueryLiteral)
-    assert str(result) == '"testmodel"."field_one"'
+    assert str(result) == '"demomodel"."field_one"'
 
 
 def test_sql_call_table():
     """Test SQLGenerator's __call__ method with a table."""
-    result = sql(TestModel)
+    result = sql(DemoModel)
     assert isinstance(result, QueryIdentifier)
-    assert str(result) == '"testmodel"'
+    assert str(result) == '"demomodel"'
 
 
 def test_sql_select_column():
     """Test SQLGenerator's select method with a column."""
-    result = sql.select(TestModel.field_one)
+    result = sql.select(DemoModel.field_one)
     assert isinstance(result, QueryLiteral)
-    assert str(result) == '"testmodel"."field_one" AS "testmodel_field_one"'
+    assert str(result) == '"demomodel"."field_one" AS "demomodel_field_one"'
 
 
 def test_sql_select_table():
     """Test SQLGenerator's select method with a table."""
-    result = sql.select(TestModel)
+    result = sql.select(DemoModel)
     assert isinstance(result, QueryLiteral)
     assert str(result) == (
-        '"testmodel"."field_one" AS "testmodel_field_one", '
-        '"testmodel"."field_two" AS "testmodel_field_two"'
+        '"demomodel"."field_one" AS "demomodel_field_one", '
+        '"demomodel"."field_two" AS "demomodel_field_two"'
     )
 
 
 def test_sql_raw_column():
     """Test SQLGenerator's raw method with a column."""
-    result = sql.raw(TestModel.field_one)
+    result = sql.raw(DemoModel.field_one)
     assert isinstance(result, QueryIdentifier)
     assert str(result) == '"field_one"'
 
 
 def test_sql_raw_table():
     """Test SQLGenerator's raw method with a table."""
-    result = sql.raw(TestModel)
+    result = sql.raw(DemoModel)
     assert isinstance(result, QueryIdentifier)
-    assert str(result) == '"testmodel"'
+    assert str(result) == '"demomodel"'

@@ -64,7 +64,7 @@ class EmployeeMetadata(TableBase):
     additional_info: dict[str, Any] = Field(is_json=True)
 
 
-class FunctionTestModel(TableBase):
+class FunctionDemoModel(TableBase):
     id: int = Field(primary_key=True, default=None)
     balance: float
     created_at: str
@@ -89,14 +89,14 @@ class FunctionTestModel(TableBase):
     timestamp_str: str
 
 
-class TestModelA(TableBase):
+class DemoModelA(TableBase):
     id: int = Field(primary_key=True, default=None)
     name: str
     description: str
     code: str = Field(unique=True)
 
 
-class TestModelB(TableBase):
+class DemoModelB(TableBase):
     id: int = Field(primary_key=True, default=None)
     name: str
     category: str

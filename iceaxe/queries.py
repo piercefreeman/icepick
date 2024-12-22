@@ -598,13 +598,12 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        if not is_column(field) and not is_function_metadata(field):
-            raise ValueError(f"Invalid order by field: {field}")
-
         if is_column(field):
             field_token, _ = field.to_query()
-        else:
+        elif is_function_metadata(field):
             field_token = field.literal
+        else:
+            raise ValueError(f"Invalid order by field: {field}")
 
         self._order_by_clauses.append(f"{field_token} {direction}")
         return self
