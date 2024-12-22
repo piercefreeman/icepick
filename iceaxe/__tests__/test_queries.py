@@ -17,8 +17,8 @@ class UserStatus(StrEnum):
 def test_select():
     new_query = QueryBuilder().select(UserDemo)
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo"',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS '
+        '"userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo"',
         [],
     )
 
@@ -408,8 +408,8 @@ def test_nested_and_or_group():
 
 #
 # Typehinting
-# These checks are run as part of the static typechecking we do
-# for our codebase, not as part of the pytest runtime.
+# These checks are run AS part of the static typechecking we do
+# for our codebase, not AS part of the pytest runtime.
 #
 
 
@@ -462,8 +462,8 @@ def test_distinct_on_multiple_fields():
 def test_for_update_basic():
     new_query = QueryBuilder().select(UserDemo).for_update()
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS '
+        '"userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo" FOR UPDATE',
         [],
     )
 
@@ -471,8 +471,8 @@ def test_for_update_basic():
 def test_for_update_nowait():
     new_query = QueryBuilder().select(UserDemo).for_update(nowait=True)
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE NOWAIT',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS '
+        '"userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo" FOR UPDATE NOWAIT',
         [],
     )
 
@@ -480,8 +480,8 @@ def test_for_update_nowait():
 def test_for_update_skip_locked():
     new_query = QueryBuilder().select(UserDemo).for_update(skip_locked=True)
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE SKIP LOCKED',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS '
+        '"userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo" FOR UPDATE SKIP LOCKED',
         [],
     )
 
@@ -489,8 +489,8 @@ def test_for_update_skip_locked():
 def test_for_update_of():
     new_query = QueryBuilder().select(UserDemo).for_update(of=(UserDemo,))
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE OF userdemo',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS '
+        '"userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo" FOR UPDATE OF "userdemo"',
         [],
     )
 
@@ -503,8 +503,8 @@ def test_for_update_multiple_calls():
         .for_update(nowait=True)
     )
     assert new_query.build() == (
-        'SELECT "userdemo"."id" as "userdemo_id", "userdemo"."name" as '
-        '"userdemo_name", "userdemo"."email" as "userdemo_email" FROM "userdemo" FOR UPDATE OF userdemo NOWAIT',
+        'SELECT "userdemo"."id" AS "userdemo_id", "userdemo"."name" AS '
+        '"userdemo_name", "userdemo"."email" AS "userdemo_email" FROM "userdemo" FOR UPDATE OF "userdemo" NOWAIT',
         [],
     )
 

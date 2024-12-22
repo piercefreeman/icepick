@@ -87,7 +87,7 @@ class ForUpdateConfig:
 
     nowait: bool = False
     skip_locked: bool = False
-    of_tables: set[str] = dataclass_field(default_factory=set)
+    of_tables: set[QueryElementBase] = dataclass_field(default_factory=set)
     conditions_set: bool = False
 
 
@@ -144,12 +144,12 @@ class QueryBuilder(Generic[P, QueryType]):
         self._offset_value: int | None = None
         self._group_by_fields: list[DBFieldClassDefinition] = []
         self._having_conditions: list[FieldComparison] = []
-        self._distinct_on_fields: list[QueryLiteral] = []
+        self._distinct_on_fields: list[QueryElementBase] = []
         self._for_update_config: ForUpdateConfig = ForUpdateConfig()
 
         # Query specific params
         self._update_values: list[tuple[DBFieldClassDefinition, Any]] = []
-        self._select_fields: list[QueryLiteral] = []
+        self._select_fields: list[QueryElementBase] = []
         self._select_raw: list[
             DBFieldClassDefinition | Type[TableBase] | FunctionMetadata
         ] = []
@@ -829,14 +829,11 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        valid_fields: list[QueryLiteral] = []
-
         for field in fields:
             if not is_column(field):
                 raise ValueError(f"Invalid field for group by: {field}")
-            valid_fields.append(sql(field))
+            self._distinct_on_fields.append(sql(field))
 
-        self._distinct_on_fields = valid_fields
         return self
 
     @allow_branching
@@ -978,7 +975,7 @@ class QueryBuilder(Generic[P, QueryType]):
 
         if self._group_by_fields:
             query += " GROUP BY "
-            query += ", ".join(sql(field) for field in self._group_by_fields)
+            query += ", ".join(str(sql(field)) for field in self._group_by_fields)
 
         if self._having_conditions:
             query += " HAVING "
@@ -1011,7 +1008,7 @@ class QueryBuilder(Generic[P, QueryType]):
             query += " FOR UPDATE"
             if self._for_update_config.of_tables:
                 # Sorting is optional for the query itself but used for test consistency
-                query += f" OF {', '.join(sorted(self._for_update_config.of_tables))}"
+                query += f" OF {', '.join([str(table) for table in sorted(self._for_update_config.of_tables)])}"
             if self._for_update_config.nowait:
                 query += " NOWAIT"
             elif self._for_update_config.skip_locked:

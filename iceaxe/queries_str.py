@@ -11,27 +11,14 @@ class QueryElementBase(ABC):
     This class provides the foundation for handling different types of SQL elements
     (like identifiers and literals) with their specific escaping and formatting rules.
 
-    The class implements equality comparisons and hashing based on the processed string
-    representation, making it suitable for comparing query elements in test assertions,
-    caching, and using elements as dictionary keys or in sets.
+    The class implements equality comparisons, hashing, and sorting based on the processed
+    string representation, making it suitable for comparing query elements in test assertions,
+    caching, using elements as dictionary keys or in sets, and sorting collections.
 
     ```python {{sticky: True}}
     # Base class is not used directly, but through its subclasses:
     table_name = QueryIdentifier("users")  # -> "users"
     raw_sql = QueryLiteral("COUNT(*)")    # -> COUNT(*)
-
-    # Can be used in sets and as dictionary keys
-    unique_elements = {
-        QueryIdentifier("users"),
-        QueryIdentifier("users"),  # Duplicate will be removed
-        QueryIdentifier("posts")
-    }
-    assert len(unique_elements) == 2
-
-    element_map = {
-        QueryIdentifier("users"): "users table",
-        QueryLiteral("COUNT(*)"): "count function"
-    }
     ```
     """
 
@@ -57,6 +44,16 @@ class QueryElementBase(ABC):
 
     def __ne__(self, compare):
         return str(self) != str(compare)
+
+    def __lt__(self, other):
+        """
+        Enable sorting of query elements based on their string representation.
+        This makes QueryElementBase instances sortable using sorted() or list.sort().
+
+        :param other: Another QueryElementBase instance to compare with
+        :return: True if this element's string representation comes before the other's
+        """
+        return str(self) < str(other)
 
     def __str__(self):
         return self._value
@@ -248,7 +245,7 @@ class SQLGenerator:
             for field_name in obj.get_client_fields():
                 field_token = QueryIdentifier(field_name)
                 return_field = QueryIdentifier(f"{obj.get_table_name()}_{field_name}")
-                select_fields.append(f"{table_token}.{field_token} as {return_field}")
+                select_fields.append(f"{table_token}.{field_token} AS {return_field}")
             return QueryLiteral(", ".join(select_fields))
         else:
             raise ValueError(f"Invalid type for select: {type(obj)}")

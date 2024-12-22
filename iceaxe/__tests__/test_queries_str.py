@@ -63,6 +63,71 @@ def test_query_element_hashable():
     assert hash(lit1) == hash(lit2)
 
 
+def test_query_element_sortable():
+    """Test that QueryElementBase subclasses can be sorted."""
+    # Test sorting of identifiers
+    identifiers = [
+        QueryIdentifier("users"),
+        QueryIdentifier("posts"),
+        QueryIdentifier("comments"),
+    ]
+    sorted_identifiers = sorted(identifiers)
+    assert [str(literal) for literal in sorted_identifiers] == [
+        '"comments"',
+        '"posts"',
+        '"users"',
+    ]
+
+    # Test sorting of literals
+    literals = [
+        QueryLiteral("SUM(*)"),
+        QueryLiteral("COUNT(*)"),
+        QueryLiteral("AVG(*)"),
+    ]
+    sorted_literals = sorted(literals)
+    assert [str(literal) for literal in sorted_literals] == [
+        "AVG(*)",
+        "COUNT(*)",
+        "SUM(*)",
+    ]
+
+    # Test sorting mixed elements
+    mixed = [
+        QueryIdentifier("users"),
+        QueryLiteral("COUNT(*)"),
+        QueryIdentifier("posts"),
+    ]
+    sorted_mixed = sorted(mixed)
+    assert [str(literal) for literal in sorted_mixed] == [
+        '"posts"',
+        '"users"',
+        "COUNT(*)",
+    ]
+
+    # Test sorting with duplicates
+    with_duplicates = [
+        QueryIdentifier("users"),
+        QueryIdentifier("posts"),
+        QueryIdentifier("users"),
+        QueryIdentifier("comments"),
+    ]
+    sorted_with_duplicates = sorted(with_duplicates)
+    assert [str(literal) for literal in sorted_with_duplicates] == [
+        '"comments"',
+        '"posts"',
+        '"users"',
+        '"users"',
+    ]
+
+    # Test reverse sorting
+    reverse_sorted = sorted(identifiers, reverse=True)
+    assert [str(literal) for literal in reverse_sorted] == [
+        '"users"',
+        '"posts"',
+        '"comments"',
+    ]
+
+
 def test_sql_call_column():
     """Test SQLGenerator's __call__ method with a column."""
     result = sql(TestModel.field_one)
@@ -89,8 +154,8 @@ def test_sql_select_table():
     result = sql.select(TestModel)
     assert isinstance(result, QueryLiteral)
     assert str(result) == (
-        '"testmodel"."field_one" as "testmodel_field_one", '
-        '"testmodel"."field_two" as "testmodel_field_two"'
+        '"testmodel"."field_one" AS "testmodel_field_one", '
+        '"testmodel"."field_two" AS "testmodel_field_two"'
     )
 
 
