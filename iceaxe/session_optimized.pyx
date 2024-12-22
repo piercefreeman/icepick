@@ -1,6 +1,7 @@
 from typing import Any, List, Tuple
 from iceaxe.base import TableBase
 from iceaxe.queries import FunctionMetadata
+from iceaxe.alias import Alias
 from json import loads as json_loads
 from cpython.ref cimport PyObject
 from cpython.object cimport PyObject_GetItem
@@ -90,7 +91,7 @@ cdef list process_values(
     cdef PyObject** result_value
     cdef object value, obj, item
     cdef dict obj_dict
-    cdef bint raw_is_table, raw_is_column, raw_is_function_metadata
+    cdef bint raw_is_table, raw_is_column, raw_is_function_metadata, raw_is_alias
     cdef char* field_name_c
     cdef char* select_name_c
     cdef str field_name
@@ -109,6 +110,7 @@ cdef list process_values(
             for j in range(num_selects):
                 select_raw = select_raws[j]
                 raw_is_table, raw_is_column, raw_is_function_metadata = select_types[j]
+                raw_is_alias = isinstance(select_raw, Alias)
 
                 if raw_is_table:
                     obj_dict = {}
@@ -159,6 +161,14 @@ cdef list process_values(
                         item = value[select_raw.local_name]
                     except KeyError:
                         raise KeyError(f"Key '{select_raw.local_name}' not found in value.")
+                    result_value[j] = <PyObject*>item
+                    Py_INCREF(item)
+
+                elif raw_is_alias:
+                    try:
+                        item = value[select_raw.name]
+                    except KeyError:
+                        raise KeyError(f"Key '{select_raw.name}' not found in value.")
                     result_value[j] = <PyObject*>item
                     Py_INCREF(item)
 

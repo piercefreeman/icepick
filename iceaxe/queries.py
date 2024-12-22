@@ -5,6 +5,7 @@ from dataclasses import dataclass, field as dataclass_field
 from functools import wraps
 from typing import Any, Generic, Literal, Type, TypeVar, TypeVarTuple, cast, overload
 
+from iceaxe.alias import Alias
 from iceaxe.base import (
     DBFieldClassDefinition,
     DBModelMetaclass,
@@ -23,6 +24,7 @@ from iceaxe.typing import (
     JSON_WRAPPER_FALLBACK,
     PRIMITIVE_TYPES,
     PRIMITIVE_WRAPPER_TYPES,
+    is_alias,
     is_base_table,
     is_column,
     is_comparison,
@@ -151,7 +153,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self._update_values: list[tuple[DBFieldClassDefinition, Any]] = []
         self._select_fields: list[QueryElementBase] = []
         self._select_raw: list[
-            DBFieldClassDefinition | Type[TableBase] | FunctionMetadata
+            DBFieldClassDefinition | Type[TableBase] | FunctionMetadata | Alias
         ] = []
         self._select_aggregate_count = 0
 
@@ -425,6 +427,7 @@ class QueryBuilder(Generic[P, QueryType]):
             if (
                 not is_column(field)
                 and not is_base_table(field)
+                and not is_alias(field)
                 and not is_function_metadata(field)
             ):
                 raise ValueError(
@@ -457,6 +460,10 @@ class QueryBuilder(Generic[P, QueryType]):
         for field in fields:
             if is_column(field) or is_base_table(field):
                 self._select_fields.append(sql.select(field))
+                self._select_raw.append(field)
+            elif is_alias(field):
+                # We don't actually add the alias to the selection query, assuming
+                # that it's captured in the raw query.
                 self._select_raw.append(field)
             elif is_function_metadata(field):
                 # We need to handle func.* functions explicitly here versus delegating
