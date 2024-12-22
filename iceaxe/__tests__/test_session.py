@@ -991,3 +991,40 @@ async def test_select_with_text_and_alias(db_connection: DBConnection):
     assert result[0][0].name == "John Doe"
     assert result[0][0].email == "john@example.com"
     assert result[0][1] == 1  # The count should be 1
+
+
+@pytest.mark.asyncio
+async def test_select_with_order_by_func_count(db_connection: DBConnection):
+    # Create users with different numbers of artifacts
+    users = [
+        UserDemo(name="John", email="john@example.com"),
+        UserDemo(name="Jane", email="jane@example.com"),
+        UserDemo(name="Bob", email="bob@example.com"),
+    ]
+    await db_connection.insert(users)
+
+    # Create artifacts with different counts per user
+    artifacts = [
+        ArtifactDemo(title="John's Post 1", user_id=users[0].id),
+        ArtifactDemo(title="John's Post 2", user_id=users[0].id),
+        ArtifactDemo(title="Jane's Post", user_id=users[1].id),
+        # Bob has no posts
+    ]
+    await db_connection.insert(artifacts)
+
+    query = (
+        QueryBuilder()
+        .select((UserDemo.name, func.count(ArtifactDemo.id)))
+        .join(ArtifactDemo, UserDemo.id == ArtifactDemo.user_id, "LEFT")
+        .group_by(UserDemo.name)
+        .order_by(func.count(ArtifactDemo.id), "DESC")
+    )
+    result = await db_connection.exec(query)
+
+    assert len(result) == 3
+    # John has 2 posts
+    assert result[0] == ("John", 2)
+    # Jane has 1 post
+    assert result[1] == ("Jane", 1)
+    # Bob has 0 posts
+    assert result[2] == ("Bob", 0)

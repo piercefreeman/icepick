@@ -582,17 +582,30 @@ class QueryBuilder(Generic[P, QueryType]):
             .order_by(User.last_name, "ASC")
             .order_by(User.first_name, "ASC")
         )
+
+        # Sort by aggregate function
+        query = (
+            QueryBuilder()
+            .select((User.name, func.count(Post.id)))
+            .join(Post, Post.user_id == User.id)
+            .group_by(User.name)
+            .order_by(func.count(Post.id), "DESC")
+        )
         ```
 
-        :param field: The field to sort by (must be a column)
+        :param field: The field to sort by (must be a column or function)
         :param direction: The sort direction, either "ASC" or "DESC"
         :return: The QueryBuilder instance for method chaining
 
         """
-        if not is_column(field):
+        if not is_column(field) and not is_function_metadata(field):
             raise ValueError(f"Invalid order by field: {field}")
 
-        field_token, _ = field.to_query()
+        if is_column(field):
+            field_token, _ = field.to_query()
+        else:
+            field_token = field.literal
+
         self._order_by_clauses.append(f"{field_token} {direction}")
         return self
 
