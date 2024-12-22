@@ -770,14 +770,12 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        valid_fields: list[DBFieldClassDefinition] = []
 
         for field in fields:
             if not is_column(field):
                 raise ValueError(f"Invalid field for group by: {field}")
-            valid_fields.append(field)
+            self._group_by_fields.append(field)
 
-        self._group_by_fields = valid_fields
         return self
 
     @allow_branching
@@ -814,14 +812,11 @@ class QueryBuilder(Generic[P, QueryType]):
         :return: The QueryBuilder instance for method chaining
 
         """
-        valid_conditions: list[FieldComparison] = []
-
         for condition in conditions:
             if not is_comparison(condition):
                 raise ValueError(f"Invalid having condition: {condition}")
-            valid_conditions.append(condition)
+            self._having_conditions.append(condition)
 
-        self._having_conditions += valid_conditions
         return self
 
     @allow_branching

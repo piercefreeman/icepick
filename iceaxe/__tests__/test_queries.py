@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING, Literal
 
 import pytest
 
-from iceaxe.__tests__.conf_models import ArtifactDemo, FunctionTestModel, UserDemo
+from iceaxe.__tests__.conf_models import (
+    ArtifactDemo,
+    Employee,
+    FunctionTestModel,
+    UserDemo,
+)
 from iceaxe.functions import func
 from iceaxe.queries import QueryBuilder, and_, or_, select
 
@@ -554,5 +559,30 @@ def test_function_cast_enum():
     assert new_query.build() == (
         'SELECT cast("functiontestmodel"."balance" as userlevel) AS aggregate_0 '
         'FROM "functiontestmodel"',
+        [],
+    )
+
+
+def test_multiple_group_by():
+    new_query = (
+        QueryBuilder()
+        .select(
+            (
+                Employee.department,
+                Employee.last_name,
+                func.count(Employee.id),
+                func.avg(Employee.salary),
+            )
+        )
+        .group_by(Employee.department)
+        .group_by(Employee.last_name)
+    )
+    assert new_query.build() == (
+        'SELECT "employee"."department" AS "employee_department", '
+        '"employee"."last_name" AS "employee_last_name", '
+        'count("employee"."id") AS aggregate_0, '
+        'avg("employee"."salary") AS aggregate_1 '
+        'FROM "employee" '
+        'GROUP BY "employee"."department", "employee"."last_name"',
         [],
     )
