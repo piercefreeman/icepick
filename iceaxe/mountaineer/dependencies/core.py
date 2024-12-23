@@ -53,7 +53,8 @@ async def get_db_connection(
         password=config.POSTGRES_PASSWORD,
         database=config.POSTGRES_DB,
     )
+    connection = DBConnection(conn)
     try:
-        yield DBConnection(conn)
+        yield connection
     finally:
-        await conn.close()
+        await connection.close()

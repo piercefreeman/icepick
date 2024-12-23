@@ -1,7 +1,9 @@
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     ClassVar,
+    Self,
     Type,
     dataclass_transform,
 )
@@ -197,7 +199,7 @@ class IndexConstraint(BaseModel):
     """
 
 
-INTERNAL_TABLE_FIELDS = ["modified_attrs"]
+INTERNAL_TABLE_FIELDS = ["modified_attrs", "modified_attrs_callbacks"]
 
 
 class TableBase(BaseModel, metaclass=DBModelMetaclass):
@@ -251,6 +253,9 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
 
     # Private methods
     modified_attrs: dict[str, Any] = Field(default_factory=dict, exclude=True)
+    modified_attrs_callbacks: list[Callable[[Self], None]] = Field(
+        default_factory=list, exclude=True
+    )
     """
     Dictionary of modified field values since instantiation or the last clear_modified_attributes() call.
     Used to construct differential update queries.
@@ -266,6 +271,8 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         """
         if name in self.model_fields:
             self.modified_attrs[name] = value
+            for callback in self.modified_attrs_callbacks:
+                callback(self)
         super().__setattr__(name, value)
 
     def get_modified_attributes(self) -> dict[str, Any]:
@@ -309,3 +316,10 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
             for field, info in cls.model_fields.items()
             if field not in INTERNAL_TABLE_FIELDS
         }
+
+    @classmethod
+    def register_modified_callback(cls, callback: Callable[[Self], None]) -> None:
+        """
+        Register a callback to be called when the model is modified.
+        """
+        cls.modified_attrs_callbacks.append(callback)
