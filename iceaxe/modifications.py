@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Literal, Sequence, TypeVar
 
 from iceaxe.base import TableBase
+from iceaxe.logging import LOGGER
 
-LOGGER = logging.getLogger(__name__)
 MODIFICATION_TRACKER_VERBOSITY = Literal["ERROR", "WARNING", "INFO"] | None
 T = TypeVar("T", bound=TableBase)
 
@@ -33,7 +33,10 @@ class Modification:
     user_stack_trace: str
 
     @staticmethod
-    def get_current_stack_trace() -> tuple[str, str]:
+    def get_current_stack_trace(
+        package_allow_list: list[str] | None = None,
+        package_deny_list: list[str] | None = None,
+    ) -> tuple[str, str]:
         """
         Get both the full stack trace and the most specific user code stack trace.
 
@@ -50,10 +53,16 @@ class Modification:
         user_traces = [
             frame
             for frame in stack
-            if "site-packages" not in frame.filename
-            and "<frozen" not in frame.filename
-            and "iceaxe/modifications.py" not in frame.filename
+            if (
+                package_allow_list is None
+                or any(pkg in frame.filename for pkg in package_allow_list)
+            )
+            and (
+                package_deny_list is None
+                or not any(pkg in frame.filename for pkg in package_deny_list)
+            )
         ]
+
         user_trace = ""
         if user_traces:
             user_trace = "".join(traceback.format_list([user_traces[-1]]))
@@ -84,7 +93,11 @@ class ModificationTracker:
     The logging level to use when reporting uncommitted modifications
     """
 
-    def __init__(self, verbosity: MODIFICATION_TRACKER_VERBOSITY | None = None):
+    def __init__(
+        self,
+        verbosity: MODIFICATION_TRACKER_VERBOSITY | None = None,
+        known_first_party: list[str] | None = None,
+    ):
         """
         Initialize a new ModificationTracker.
 
@@ -93,6 +106,7 @@ class ModificationTracker:
         """
         self.modified_models = {}
         self.verbosity = verbosity
+        self.known_first_party = known_first_party
 
     def track_modification(self, instance: TableBase) -> None:
         """
@@ -105,8 +119,12 @@ class ModificationTracker:
         :param instance: The model instance that was modified
         :type instance: TableBase
         """
-        # Get stack traces
-        full_trace, user_trace = Modification.get_current_stack_trace()
+        # Get stack traces. By default we filter out all iceaxe code, but allow users to override this behavior
+        # if we want to still test this logic under test.
+        full_trace, user_trace = Modification.get_current_stack_trace(
+            package_allow_list=self.known_first_party,
+            package_deny_list=["iceaxe"] if not self.known_first_party else None,
+        )
 
         # Only track if we haven't already tracked this instance
         instance_id = id(instance)

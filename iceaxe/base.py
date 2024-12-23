@@ -253,12 +253,16 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
 
     # Private methods
     modified_attrs: dict[str, Any] = Field(default_factory=dict, exclude=True)
+    """
+    Dictionary of modified field values since instantiation or the last clear_modified_attributes() call.
+    Used to construct differential update queries.
+    """
+
     modified_attrs_callbacks: list[Callable[[Self], None]] = Field(
         default_factory=list, exclude=True
     )
     """
-    Dictionary of modified field values since instantiation or the last clear_modified_attributes() call.
-    Used to construct differential update queries.
+    List of callbacks to be called when the model is modified.
     """
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -317,9 +321,8 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
             if field not in INTERNAL_TABLE_FIELDS
         }
 
-    @classmethod
-    def register_modified_callback(cls, callback: Callable[[Self], None]) -> None:
+    def register_modified_callback(self, callback: Callable[[Self], None]) -> None:
         """
         Register a callback to be called when the model is modified.
         """
-        cls.modified_attrs_callbacks.append(callback)
+        self.modified_attrs_callbacks.append(callback)

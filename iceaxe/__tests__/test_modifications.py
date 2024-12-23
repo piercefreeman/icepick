@@ -13,7 +13,7 @@ from iceaxe.modifications import (
 @pytest.fixture
 def tracker():
     """Create a fresh ModificationTracker for each test."""
-    return ModificationTracker()
+    return ModificationTracker(known_first_party=["test_modifications"])
 
 
 @pytest.fixture
@@ -124,3 +124,28 @@ def test_clear_status_cleanup(tracker: ModificationTracker):
     assert id(instance) in tracker.modified_models
     tracker.clear_status([instance])
     assert id(instance) not in tracker.modified_models
+
+
+def test_callback_registration(tracker: ModificationTracker):
+    """
+    Test that registering the tracker as a callback on a model instance
+    properly tracks modifications when the model is changed.
+    """
+    instance = UserDemo(id=1, name="test", email="test@example.com")
+    instance.register_modified_callback(tracker.track_modification)
+
+    # Initially no modifications
+    assert id(instance) not in tracker.modified_models
+
+    # Modify the instance
+    instance.name = "new name"
+
+    # Should have tracked the modification
+    assert id(instance) in tracker.modified_models
+    modification = tracker.modified_models[id(instance)]
+    assert modification.instance == instance
+    assert "test_modifications.py" in modification.user_stack_trace
+
+    # Another modification shouldn't create a new entry
+    instance.email = "new@example.com"
+    assert len(tracker.modified_models) == 1
