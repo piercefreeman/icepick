@@ -53,7 +53,9 @@ async def get_db_connection(
         password=config.POSTGRES_PASSWORD,
         database=config.POSTGRES_DB,
     )
-    connection = DBConnection(conn)
+    connection = DBConnection(
+        conn, uncommitted_verbosity=config.ICEAXE_UNCOMMITTED_VERBOSITY
+    )
     try:
         yield connection
     finally:

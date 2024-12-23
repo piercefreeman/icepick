@@ -81,6 +81,7 @@ class DBConnection:
     def __init__(
         self,
         conn: asyncpg.Connection,
+        *,
         uncommitted_verbosity: Literal["ERROR", "WARNING", "INFO"] | None = None,
     ):
         """
