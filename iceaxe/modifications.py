@@ -167,7 +167,9 @@ class ModificationTracker:
         log_level = getattr(logging, self.verbosity)
 
         for mod in self.modified_models.values():
-            LOGGER.log(log_level, f"Uncommitted object: {mod.instance}")
+            LOGGER.log(
+                log_level, f"Object modified locally but not committed: {mod.instance}"
+            )
             LOGGER.log(log_level, f"Modified at:\n{mod.user_stack_trace}")
             if self.verbosity == "INFO":
                 LOGGER.log(log_level, f"Full stack trace:\n{mod.stack_trace}")

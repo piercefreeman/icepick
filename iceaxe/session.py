@@ -261,6 +261,9 @@ class DBConnection:
                         setattr(obj, primary_key, result[primary_key])
                     obj.clear_modified_attributes()
 
+        for obj in objects:
+            obj.register_modified_callback(self.modification_tracker.track_modification)
+
         self.modification_tracker.clear_status(objects)
 
     @overload
