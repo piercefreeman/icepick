@@ -1,7 +1,9 @@
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     ClassVar,
+    Self,
     Type,
     dataclass_transform,
 )
@@ -197,7 +199,7 @@ class IndexConstraint(BaseModel):
     """
 
 
-INTERNAL_TABLE_FIELDS = ["modified_attrs"]
+INTERNAL_TABLE_FIELDS = ["modified_attrs", "modified_attrs_callbacks"]
 
 
 class TableBase(BaseModel, metaclass=DBModelMetaclass):
@@ -256,6 +258,13 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
     Used to construct differential update queries.
     """
 
+    modified_attrs_callbacks: list[Callable[[Self], None]] = Field(
+        default_factory=list, exclude=True
+    )
+    """
+    List of callbacks to be called when the model is modified.
+    """
+
     def __setattr__(self, name: str, value: Any) -> None:
         """
         Track modified attributes when fields are updated.
@@ -266,6 +275,8 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         """
         if name in self.model_fields:
             self.modified_attrs[name] = value
+            for callback in self.modified_attrs_callbacks:
+                callback(self)
         super().__setattr__(name, value)
 
     def get_modified_attributes(self) -> dict[str, Any]:
@@ -309,3 +320,31 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
             for field, info in cls.model_fields.items()
             if field not in INTERNAL_TABLE_FIELDS
         }
+
+    def register_modified_callback(self, callback: Callable[[Self], None]) -> None:
+        """
+        Register a callback to be called when the model is modified.
+        """
+        self.modified_attrs_callbacks.append(callback)
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Compare two model instances, ignoring modified_attrs_callbacks.
+        This ensures that two models with the same data but different callbacks are considered equal.
+        """
+        if not isinstance(other, self.__class__):
+            return False
+
+        # Get all fields except modified_attrs_callbacks
+        fields = {
+            field: value
+            for field, value in self.__dict__.items()
+            if field not in INTERNAL_TABLE_FIELDS
+        }
+        other_fields = {
+            field: value
+            for field, value in other.__dict__.items()
+            if field not in INTERNAL_TABLE_FIELDS
+        }
+
+        return fields == other_fields

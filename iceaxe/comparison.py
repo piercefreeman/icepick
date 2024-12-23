@@ -198,11 +198,11 @@ class FieldComparison(Generic[T]):
             elif self.comparison in (ComparisonType.IN, ComparisonType.NOT_IN):
                 variables.append(self.right)
                 comparison_map = {
-                    ComparisonType.IN: ComparisonType.EQ,
-                    ComparisonType.NOT_IN: ComparisonType.NE,
+                    ComparisonType.IN: (ComparisonType.EQ, "ANY"),
+                    ComparisonType.NOT_IN: (ComparisonType.NE, "ALL"),
                 }
-                comparison = comparison_map[self.comparison]
-                value = QueryLiteral(f"ANY(${variable_offset})")
+                comparison, operator = comparison_map[self.comparison]
+                value = QueryLiteral(f"{operator}(${variable_offset})")
             else:
                 # Support comparison to static values
                 variables.append(self.right)

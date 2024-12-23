@@ -4,10 +4,12 @@ from typing import Any
 import pytest
 from typing_extensions import assert_type
 
+from iceaxe.__tests__.conf_models import UserDemo
 from iceaxe.__tests__.helpers import pyright_raises
 from iceaxe.base import TableBase
 from iceaxe.comparison import ComparisonType, FieldComparison
 from iceaxe.field import DBFieldClassDefinition, DBFieldInfo
+from iceaxe.queries_str import QueryLiteral
 from iceaxe.typing import column
 
 
@@ -242,3 +244,23 @@ def test_typehint_in():
         matches=re_compile('cannot be assigned to parameter "other"'),
     ):
         str_col.not_in(["test", 5])  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "comparison_type,expected_sql",
+    [
+        (ComparisonType.IN, '"userdemo"."name" = ANY($1)'),
+        (ComparisonType.NOT_IN, '"userdemo"."name" != ALL($1)'),
+    ],
+)
+def test_in_not_in_formatting(comparison_type: ComparisonType, expected_sql: str):
+    """
+    Test that in_ and not_in operators correctly format to ANY and ALL in SQL.
+    """
+    comparison = FieldComparison(
+        left=column(UserDemo.name), comparison=comparison_type, right=["John", "Jane"]
+    )
+    query, variables = comparison.to_query()
+    assert isinstance(query, QueryLiteral)
+    assert str(query) == expected_sql
+    assert variables == [["John", "Jane"]]

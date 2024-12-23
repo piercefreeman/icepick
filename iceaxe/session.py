@@ -16,6 +16,7 @@ from typing_extensions import TypeVarTuple
 
 from iceaxe.base import TableBase
 from iceaxe.logging import LOGGER
+from iceaxe.modifications import ModificationTracker
 from iceaxe.queries import (
     QueryBuilder,
     is_base_table,
@@ -77,15 +78,23 @@ class DBConnection:
     ```
     """
 
-    def __init__(self, conn: asyncpg.Connection):
+    def __init__(
+        self,
+        conn: asyncpg.Connection,
+        uncommitted_verbosity: Literal["ERROR", "WARNING", "INFO"] | None = None,
+    ):
         """
         Initialize a new database connection wrapper.
 
         :param conn: An asyncpg Connection instance to wrap
+        :param uncommitted_verbosity: The verbosity level if objects are modified but not committed when
+            the session is closed, defaults to nothing
+
         """
         self.conn = conn
         self.obj_to_primary_key: dict[str, str | None] = {}
         self.in_transaction = False
+        self.modification_tracker = ModificationTracker(uncommitted_verbosity)
 
     @asynccontextmanager
     async def transaction(self):
@@ -183,6 +192,18 @@ class DBConnection:
             ]
 
             result_all = optimize_exec_casting(values, query._select_raw, select_types)
+
+            # Only loop through results if we have verbosity enabled, since this logic otherwise
+            # is wasted if no content will eventually be logged
+            if self.modification_tracker.verbosity:
+                for row in result_all:
+                    elements = row if isinstance(row, tuple) else (row,)
+                    for element in elements:
+                        if isinstance(element, TableBase):
+                            element.register_modified_callback(
+                                self.modification_tracker.track_modification
+                            )
+
             return cast(list[T], result_all)
 
         return None
@@ -239,6 +260,11 @@ class DBConnection:
                     if primary_key and result:
                         setattr(obj, primary_key, result[primary_key])
                     obj.clear_modified_attributes()
+
+        for obj in objects:
+            obj.register_modified_callback(self.modification_tracker.track_modification)
+
+        self.modification_tracker.clear_status(objects)
 
     @overload
     async def upsert(
@@ -374,6 +400,8 @@ class DBConnection:
 
                     obj.clear_modified_attributes()
 
+        self.modification_tracker.clear_status(objects)
+
         return results if returning_fields_cols else None
 
     async def update(self, objects: Sequence[TableBase]):
@@ -430,6 +458,8 @@ class DBConnection:
                     await self.conn.execute(query, *values)
                     obj.clear_modified_attributes()
 
+        self.modification_tracker.clear_status(objects)
+
     async def delete(self, objects: Sequence[TableBase]):
         """
         Delete one or more model instances from the database.
@@ -464,6 +494,8 @@ class DBConnection:
                 for obj in model_objects:
                     query = f"DELETE FROM {table_name} WHERE {primary_key_name} = $1"
                     await self.conn.execute(query, getattr(obj, primary_key))
+
+        self.modification_tracker.clear_status(objects)
 
     async def refresh(self, objects: Sequence[TableBase]):
         """
@@ -518,6 +550,13 @@ class DBConnection:
                         f"Object {obj} with primary key {obj_id} not found in database"
                     )
 
+        # When an object is refreshed, it's fully overwritten with the new data so by
+        # definition it's no longer modified
+        for obj in objects:
+            obj.clear_modified_attributes()
+
+        self.modification_tracker.clear_status(objects)
+
     async def get(
         self, model: Type[TableType], primary_key_value: Any
     ) -> TableType | None:
@@ -559,6 +598,13 @@ class DBConnection:
         )
         results = await self.exec(query)
         return results[0] if results else None
+
+    async def close(self):
+        """
+        Close the database connection.
+        """
+        await self.conn.close()
+        self.modification_tracker.log()
 
     def _aggregate_models_by_table(self, objects: Sequence[TableBase]):
         """
