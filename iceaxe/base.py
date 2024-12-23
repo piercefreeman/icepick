@@ -326,3 +326,25 @@ class TableBase(BaseModel, metaclass=DBModelMetaclass):
         Register a callback to be called when the model is modified.
         """
         self.modified_attrs_callbacks.append(callback)
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Compare two model instances, ignoring modified_attrs_callbacks.
+        This ensures that two models with the same data but different callbacks are considered equal.
+        """
+        if not isinstance(other, self.__class__):
+            return False
+
+        # Get all fields except modified_attrs_callbacks
+        fields = {
+            field: value
+            for field, value in self.__dict__.items()
+            if field not in INTERNAL_TABLE_FIELDS
+        }
+        other_fields = {
+            field: value
+            for field, value in other.__dict__.items()
+            if field not in INTERNAL_TABLE_FIELDS
+        }
+
+        return fields == other_fields

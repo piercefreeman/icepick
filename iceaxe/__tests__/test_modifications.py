@@ -94,7 +94,7 @@ def test_log_with_different_verbosity(
 
     if verbosity:
         assert len(caplog.records) > 0
-        assert "Uncommitted object" in caplog.records[0].message
+        assert "Object modified locally but not committed" in caplog.records[0].message
         if verbosity == "INFO":
             assert any(
                 "Full stack trace" in record.message for record in caplog.records
