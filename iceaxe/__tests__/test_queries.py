@@ -586,3 +586,20 @@ def test_multiple_group_by():
         'GROUP BY "employee"."department", "employee"."last_name"',
         [],
     )
+
+
+def test_group_by_with_function():
+    new_query = (
+        QueryBuilder()
+        .select(
+            (
+                func.date_trunc("month", FunctionDemoModel.created_at),
+                func.count(FunctionDemoModel.id),
+            )
+        )
+        .group_by(func.date_trunc("month", FunctionDemoModel.created_at))
+    )
+    assert new_query.build() == (
+        'SELECT date_trunc(\'month\', "functiondemomodel"."created_at") AS aggregate_0, count("functiondemomodel"."id") AS aggregate_1 FROM "functiondemomodel" GROUP BY date_trunc(\'month\', "functiondemomodel"."created_at")',
+        [],
+    )
