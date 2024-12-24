@@ -455,7 +455,7 @@ class DBConnection:
 
                 for obj in model_objects:
                     modified_attrs = {
-                        k: v
+                        k: obj.model_fields[k].to_db_value(v)
                         for k, v in obj.get_modified_attributes().items()
                         if not obj.model_fields[k].exclude
                     }
@@ -469,7 +469,13 @@ class DBConnection:
 
                     query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_name} = $1"
                     values = [getattr(obj, primary_key)] + list(modified_attrs.values())
-                    await self.conn.execute(query, *values)
+                    try:
+                        await self.conn.execute(query, *values)
+                    except Exception as e:
+                        LOGGER.error(
+                            f"Error executing query: {query} with variables: {values}"
+                        )
+                        raise e
                     obj.clear_modified_attributes()
 
         self.modification_tracker.clear_status(objects)

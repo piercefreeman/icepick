@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Any
 
 import asyncpg
 import pytest
@@ -21,6 +22,17 @@ from iceaxe.session import (
     DBConnection,
 )
 from iceaxe.typing import column
+
+
+class JsonDemo(TableBase):
+    """
+    Model for testing JSON field updates.
+    """
+
+    id: int | None = Field(primary_key=True, autoincrement=True, default=None)
+    settings: dict[Any, Any] = Field(is_json=True)
+    metadata: dict[Any, Any] | None = Field(is_json=True)
+
 
 #
 # Insert / Update / Delete with ORM objects
@@ -1028,3 +1040,32 @@ async def test_select_with_order_by_func_count(db_connection: DBConnection):
     assert result[1] == ("Jane", 1)
     # Bob has 0 posts
     assert result[2] == ("Bob", 0)
+
+
+@pytest.mark.asyncio
+async def test_json_update(db_connection: DBConnection):
+    """
+    Test that JSON fields are correctly serialized during updates.
+    """
+    # Create the table first
+    await db_connection.conn.execute("DROP TABLE IF EXISTS jsondemo")
+    await create_all(db_connection, [JsonDemo])
+
+    # Create initial object with JSON data
+    demo = JsonDemo(
+        settings={"theme": "dark", "notifications": True}, metadata={"version": 1}
+    )
+    await db_connection.insert([demo])
+
+    # Update JSON fields
+    demo.settings = {"theme": "light", "notifications": False}
+    demo.metadata = {"version": 2, "last_updated": "2024-01-01"}
+    await db_connection.update([demo])
+
+    # Verify the update through a fresh select
+    result = await db_connection.exec(
+        QueryBuilder().select(JsonDemo).where(JsonDemo.id == demo.id)
+    )
+    assert len(result) == 1
+    assert result[0].settings == {"theme": "light", "notifications": False}
+    assert result[0].metadata == {"version": 2, "last_updated": "2024-01-01"}
