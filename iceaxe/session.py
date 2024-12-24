@@ -14,7 +14,7 @@ from typing import (
 import asyncpg
 from typing_extensions import TypeVarTuple
 
-from iceaxe.base import TableBase
+from iceaxe.base import DBFieldClassDefinition, TableBase
 from iceaxe.logging import LOGGER
 from iceaxe.modifications import ModificationTracker
 from iceaxe.queries import (
@@ -333,13 +333,26 @@ class DBConnection:
             return None
 
         # Evaluate column types
-        conflict_fields_cols = [field for field in conflict_fields if is_column(field)]
-        update_fields_cols = [
-            field for field in update_fields or [] if is_column(field)
-        ]
-        returning_fields_cols = [
-            field for field in returning_fields or [] if is_column(field)
-        ]
+        conflict_fields_cols: list[DBFieldClassDefinition] = []
+        update_fields_cols: list[DBFieldClassDefinition] = []
+        returning_fields_cols: list[DBFieldClassDefinition] = []
+
+        # Explicitly validate types of all columns
+        for field in conflict_fields:
+            if is_column(field):
+                conflict_fields_cols.append(field)
+            else:
+                raise ValueError(f"Field {field} is not a column")
+        for field in update_fields or []:
+            if is_column(field):
+                update_fields_cols.append(field)
+            else:
+                raise ValueError(f"Field {field} is not a column")
+        for field in returning_fields or []:
+            if is_column(field):
+                returning_fields_cols.append(field)
+            else:
+                raise ValueError(f"Field {field} is not a column")
 
         results: list[tuple[T, *Ts]] = []
         async with self._ensure_transaction():
