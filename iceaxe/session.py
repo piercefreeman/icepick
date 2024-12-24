@@ -1,5 +1,6 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from json import loads as json_loads
 from typing import (
     Any,
     Literal,
@@ -274,8 +275,8 @@ class DBConnection:
         *,
         conflict_fields: tuple[Any, ...],
         update_fields: tuple[Any, ...] | None = None,
-        returning_fields: tuple[T, *Ts],
-    ) -> list[tuple[T, *Ts]]: ...
+        returning_fields: tuple[T, *Ts] | None = None,
+    ) -> list[tuple[T, *Ts]] | None: ...
 
     @overload
     async def upsert(
@@ -401,14 +402,17 @@ class DBConnection:
                     if returning_fields_cols:
                         result = await self.conn.fetchrow(query, *values)
                         if result:
-                            results.append(
-                                tuple(
-                                    [
-                                        result[field.key]
-                                        for field in returning_fields_cols
-                                    ]
-                                )
-                            )
+                            # Process returned values, deserializing JSON if needed
+                            processed_values = []
+                            for field in returning_fields_cols:
+                                value = result[field.key]
+                                if (
+                                    value is not None
+                                    and field.root_model.model_fields[field.key].is_json
+                                ):
+                                    value = json_loads(value)
+                                processed_values.append(value)
+                            results.append(tuple(processed_values))
                     else:
                         await self.conn.execute(query, *values)
 

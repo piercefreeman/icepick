@@ -1,5 +1,4 @@
 from enum import StrEnum
-from typing import Any
 
 import asyncpg
 import pytest
@@ -9,6 +8,7 @@ from iceaxe.__tests__.conf_models import (
     ComplexDemo,
     DemoModelA,
     DemoModelB,
+    JsonDemo,
     UserDemo,
 )
 from iceaxe.alias_values import alias
@@ -22,17 +22,6 @@ from iceaxe.session import (
     DBConnection,
 )
 from iceaxe.typing import column
-
-
-class JsonDemo(TableBase):
-    """
-    Model for testing JSON field updates.
-    """
-
-    id: int | None = Field(primary_key=True, autoincrement=True, default=None)
-    settings: dict[Any, Any] = Field(is_json=True)
-    metadata: dict[Any, Any] | None = Field(is_json=True)
-
 
 #
 # Insert / Update / Delete with ORM objects
@@ -1053,7 +1042,9 @@ async def test_json_update(db_connection: DBConnection):
 
     # Create initial object with JSON data
     demo = JsonDemo(
-        settings={"theme": "dark", "notifications": True}, metadata={"version": 1}
+        settings={"theme": "dark", "notifications": True},
+        metadata={"version": 1},
+        unique_val="1",
     )
     await db_connection.insert([demo])
 
@@ -1068,4 +1059,56 @@ async def test_json_update(db_connection: DBConnection):
     )
     assert len(result) == 1
     assert result[0].settings == {"theme": "light", "notifications": False}
+    assert result[0].metadata == {"version": 2, "last_updated": "2024-01-01"}
+
+
+@pytest.mark.asyncio
+async def test_json_upsert(db_connection: DBConnection):
+    """
+    Test that JSON fields are correctly serialized during upsert operations.
+    """
+    # Create the table first
+    await db_connection.conn.execute("DROP TABLE IF EXISTS jsondemo")
+    await create_all(db_connection, [JsonDemo])
+
+    # Initial insert via upsert
+    demo = JsonDemo(
+        settings={"theme": "dark", "notifications": True},
+        metadata={"version": 1},
+        unique_val="1",
+    )
+    result = await db_connection.upsert(
+        [demo],
+        conflict_fields=(JsonDemo.unique_val,),
+        update_fields=(JsonDemo.metadata,),
+        returning_fields=(JsonDemo.unique_val, JsonDemo.metadata),
+    )
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0][0] == "1"
+    assert result[0][1] == {"version": 1}
+
+    # Update via upsert
+    demo2 = JsonDemo(
+        settings={"theme": "dark", "notifications": True},
+        metadata={"version": 2, "last_updated": "2024-01-01"},  # New metadata
+        unique_val="1",  # Same value to trigger update
+    )
+    result = await db_connection.upsert(
+        [demo2],
+        conflict_fields=(JsonDemo.unique_val,),
+        update_fields=(JsonDemo.metadata,),
+        returning_fields=(JsonDemo.unique_val, JsonDemo.metadata),
+    )
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0][0] == "1"
+    assert result[0][1] == {"version": 2, "last_updated": "2024-01-01"}
+
+    # Verify through a fresh select
+    result = await db_connection.exec(QueryBuilder().select(JsonDemo))
+    assert len(result) == 1
+    assert result[0].settings == {"theme": "dark", "notifications": True}
     assert result[0].metadata == {"version": 2, "last_updated": "2024-01-01"}

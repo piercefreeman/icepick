@@ -5,7 +5,7 @@ from typing import Any
 
 from pyinstrument import Profiler
 
-from iceaxe.base import Field, TableBase
+from iceaxe.base import Field, TableBase, UniqueConstraint
 
 
 class UserDemo(TableBase):
@@ -101,6 +101,19 @@ class DemoModelB(TableBase):
     name: str
     category: str
     code: str = Field(unique=True)
+
+
+class JsonDemo(TableBase):
+    """
+    Model for testing JSON field updates.
+    """
+
+    id: int | None = Field(primary_key=True, default=None)
+    settings: dict[Any, Any] = Field(is_json=True)
+    metadata: dict[Any, Any] | None = Field(is_json=True)
+    unique_val: str
+
+    table_args = [UniqueConstraint(columns=["unique_val"])]
 
 
 @contextmanager
