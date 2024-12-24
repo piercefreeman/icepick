@@ -144,7 +144,7 @@ class QueryBuilder(Generic[P, QueryType]):
         self._join_clauses: list[str] = []
         self._limit_value: int | None = None
         self._offset_value: int | None = None
-        self._group_by_fields: list[DBFieldClassDefinition] = []
+        self._group_by_clauses: list[str] = []
         self._having_conditions: list[FieldComparison] = []
         self._distinct_on_fields: list[QueryElementBase] = []
         self._for_update_config: ForUpdateConfig = ForUpdateConfig()
@@ -771,9 +771,14 @@ class QueryBuilder(Generic[P, QueryType]):
         """
 
         for field in fields:
-            if not is_column(field):
-                raise ValueError(f"Invalid field for group by: {field}")
-            self._group_by_fields.append(field)
+            if is_column(field):
+                field_token, _ = field.to_query()
+            elif is_function_metadata(field):
+                field_token = field.literal
+            else:
+                raise ValueError(f"Invalid group by field: {field}")
+
+            self._group_by_clauses.append(str(field_token))
 
         return self
 
@@ -987,9 +992,9 @@ class QueryBuilder(Generic[P, QueryType]):
             query += f" WHERE {comparison_literal}"
             variables += comparison_variables
 
-        if self._group_by_fields:
+        if self._group_by_clauses:
             query += " GROUP BY "
-            query += ", ".join(str(sql(field)) for field in self._group_by_fields)
+            query += ", ".join(str(field) for field in self._group_by_clauses)
 
         if self._having_conditions:
             query += " HAVING "

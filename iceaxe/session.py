@@ -1,5 +1,6 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from json import loads as json_loads
 from typing import (
     Any,
     Literal,
@@ -14,7 +15,7 @@ from typing import (
 import asyncpg
 from typing_extensions import TypeVarTuple
 
-from iceaxe.base import TableBase
+from iceaxe.base import DBFieldClassDefinition, TableBase
 from iceaxe.logging import LOGGER
 from iceaxe.modifications import ModificationTracker
 from iceaxe.queries import (
@@ -81,6 +82,7 @@ class DBConnection:
     def __init__(
         self,
         conn: asyncpg.Connection,
+        *,
         uncommitted_verbosity: Literal["ERROR", "WARNING", "INFO"] | None = None,
     ):
         """
@@ -273,8 +275,8 @@ class DBConnection:
         *,
         conflict_fields: tuple[Any, ...],
         update_fields: tuple[Any, ...] | None = None,
-        returning_fields: tuple[T, *Ts],
-    ) -> list[tuple[T, *Ts]]: ...
+        returning_fields: tuple[T, *Ts] | None = None,
+    ) -> list[tuple[T, *Ts]] | None: ...
 
     @overload
     async def upsert(
@@ -332,13 +334,26 @@ class DBConnection:
             return None
 
         # Evaluate column types
-        conflict_fields_cols = [field for field in conflict_fields if is_column(field)]
-        update_fields_cols = [
-            field for field in update_fields or [] if is_column(field)
-        ]
-        returning_fields_cols = [
-            field for field in returning_fields or [] if is_column(field)
-        ]
+        conflict_fields_cols: list[DBFieldClassDefinition] = []
+        update_fields_cols: list[DBFieldClassDefinition] = []
+        returning_fields_cols: list[DBFieldClassDefinition] = []
+
+        # Explicitly validate types of all columns
+        for field in conflict_fields:
+            if is_column(field):
+                conflict_fields_cols.append(field)
+            else:
+                raise ValueError(f"Field {field} is not a column")
+        for field in update_fields or []:
+            if is_column(field):
+                update_fields_cols.append(field)
+            else:
+                raise ValueError(f"Field {field} is not a column")
+        for field in returning_fields or []:
+            if is_column(field):
+                returning_fields_cols.append(field)
+            else:
+                raise ValueError(f"Field {field} is not a column")
 
         results: list[tuple[T, *Ts]] = []
         async with self._ensure_transaction():
@@ -387,14 +402,17 @@ class DBConnection:
                     if returning_fields_cols:
                         result = await self.conn.fetchrow(query, *values)
                         if result:
-                            results.append(
-                                tuple(
-                                    [
-                                        result[field.key]
-                                        for field in returning_fields_cols
-                                    ]
-                                )
-                            )
+                            # Process returned values, deserializing JSON if needed
+                            processed_values = []
+                            for field in returning_fields_cols:
+                                value = result[field.key]
+                                if (
+                                    value is not None
+                                    and field.root_model.model_fields[field.key].is_json
+                                ):
+                                    value = json_loads(value)
+                                processed_values.append(value)
+                            results.append(tuple(processed_values))
                     else:
                         await self.conn.execute(query, *values)
 
@@ -441,7 +459,7 @@ class DBConnection:
 
                 for obj in model_objects:
                     modified_attrs = {
-                        k: v
+                        k: obj.model_fields[k].to_db_value(v)
                         for k, v in obj.get_modified_attributes().items()
                         if not obj.model_fields[k].exclude
                     }
@@ -455,7 +473,13 @@ class DBConnection:
 
                     query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_name} = $1"
                     values = [getattr(obj, primary_key)] + list(modified_attrs.values())
-                    await self.conn.execute(query, *values)
+                    try:
+                        await self.conn.execute(query, *values)
+                    except Exception as e:
+                        LOGGER.error(
+                            f"Error executing query: {query} with variables: {values}"
+                        )
+                        raise e
                     obj.clear_modified_attributes()
 
         self.modification_tracker.clear_status(objects)

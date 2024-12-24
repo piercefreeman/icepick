@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings
 
+from iceaxe.modifications import MODIFICATION_TRACKER_VERBOSITY
+
 
 class DatabaseConfig(BaseSettings):
     """
@@ -35,4 +37,10 @@ class DatabaseConfig(BaseSettings):
     """
     The port number where PostgreSQL server is listening.
     Defaults to the standard PostgreSQL port 5432 if not specified.
+    """
+
+    ICEAXE_UNCOMMITTED_VERBOSITY: MODIFICATION_TRACKER_VERBOSITY | None = None
+    """
+    The verbosity level for uncommitted modifications.
+    If set to None, uncommitted modifications will not be tracked.
     """
