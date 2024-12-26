@@ -9,6 +9,7 @@ from pydantic import create_model
 from pydantic.fields import FieldInfo
 
 from iceaxe import Field, TableBase
+from iceaxe.base import IndexConstraint, UniqueConstraint
 from iceaxe.field import DBFieldInfo
 from iceaxe.postgres import PostgresDateTime, PostgresTime
 from iceaxe.schemas.actions import (
@@ -1186,3 +1187,89 @@ def test_parse_enums():
     assert isinstance(type_declaration.custom_type, DBType)
     assert type_declaration.custom_type.name == "standardenumdemo"
     assert type_declaration.custom_type.values == frozenset(["a", "b"])
+
+
+def test_all_constraint_types(clear_all_database_objects):
+    """
+    Test that all types of constraints (foreign keys, unique constraints, indexes,
+    and primary keys) are correctly serialized from TableBase schemas.
+    """
+
+    class ParentModel(TableBase):
+        id: int = Field(primary_key=True)
+        name: str = Field(unique=True)
+
+    class ChildModel(TableBase):
+        id: int = Field(primary_key=True)
+        parent_id: int = Field(foreign_key="parentmodel.id")
+        name: str
+        email: str
+        status: str
+
+        table_args = [
+            UniqueConstraint(columns=["name", "email"]),
+            IndexConstraint(columns=["status"]),
+        ]
+
+    migrator = DatabaseMemorySerializer()
+    db_objects = list(migrator.delegate([ParentModel, ChildModel]))
+
+    # Extract all constraints for verification
+    constraints = [obj for obj, _ in db_objects if isinstance(obj, DBConstraint)]
+
+    # Verify ParentModel constraints
+    parent_constraints = [c for c in constraints if c.table_name == "parentmodel"]
+    assert len(parent_constraints) == 2
+
+    # Primary key constraint
+    pk_constraint = next(
+        c for c in parent_constraints if c.constraint_type == ConstraintType.PRIMARY_KEY
+    )
+    assert pk_constraint.columns == frozenset({"id"})
+    assert pk_constraint.constraint_name == "parentmodel_pkey"
+
+    # Unique constraint on name
+    unique_constraint = next(
+        c for c in parent_constraints if c.constraint_type == ConstraintType.UNIQUE
+    )
+    assert unique_constraint.columns == frozenset({"name"})
+    assert unique_constraint.constraint_name == "parentmodel_name_unique"
+
+    # Verify ChildModel constraints
+    child_constraints = [c for c in constraints if c.table_name == "childmodel"]
+    assert len(child_constraints) == 4  # PK, FK, Unique, Index
+
+    # Primary key constraint
+    child_pk = next(
+        c for c in child_constraints if c.constraint_type == ConstraintType.PRIMARY_KEY
+    )
+    assert child_pk.columns == frozenset({"id"})
+    assert child_pk.constraint_name == "childmodel_pkey"
+
+    # Foreign key constraint
+    fk_constraint = next(
+        c for c in child_constraints if c.constraint_type == ConstraintType.FOREIGN_KEY
+    )
+    assert fk_constraint.columns == frozenset({"parent_id"})
+    assert fk_constraint.constraint_name == "childmodel_parent_id_fkey"
+    assert fk_constraint.foreign_key_constraint is not None
+    assert fk_constraint.foreign_key_constraint.target_table == "parentmodel"
+    assert fk_constraint.foreign_key_constraint.target_columns == frozenset({"id"})
+
+    # Composite unique constraint
+    composite_unique = next(
+        c for c in child_constraints if c.constraint_type == ConstraintType.UNIQUE
+    )
+    assert composite_unique.columns == frozenset({"name", "email"})
+    # The order of columns in the constraint name doesn't matter for functionality
+    assert composite_unique.constraint_name in [
+        "childmodel_name_email_unique",
+        "childmodel_email_name_unique",
+    ]
+
+    # Index constraint
+    index_constraint = next(
+        c for c in child_constraints if c.constraint_type == ConstraintType.INDEX
+    )
+    assert index_constraint.columns == frozenset({"status"})
+    assert index_constraint.constraint_name == "childmodel_status_idx"
