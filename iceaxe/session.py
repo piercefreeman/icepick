@@ -284,8 +284,11 @@ class DBConnection:
                         obj.clear_modified_attributes()
 
         # Register modification callbacks outside the main insert loop
-        for obj in objects:
-            obj.register_modified_callback(self.modification_tracker.track_modification)
+        if self.modification_tracker.verbosity:
+            for obj in objects:
+                obj.register_modified_callback(
+                    self.modification_tracker.track_modification
+                )
 
         # Clear modification status
         self.modification_tracker.clear_status(objects)
