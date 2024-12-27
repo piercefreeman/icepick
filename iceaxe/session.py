@@ -1,6 +1,7 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from json import loads as json_loads
+from math import ceil
 from typing import (
     Any,
     Literal,
@@ -32,6 +33,9 @@ T = TypeVar("T")
 Ts = TypeVarTuple("Ts")
 
 TableType = TypeVar("TableType", bound=TableBase)
+
+# PostgreSQL has a limit of 65535 parameters per query
+PG_MAX_PARAMETERS = 65535
 
 
 class DBConnection:
@@ -235,37 +239,98 @@ class DBConnection:
         if not objects:
             return
 
-        for model, model_objects in self._aggregate_models_by_table(objects):
-            table_name = QueryIdentifier(model.get_table_name())
-            fields = {
-                field: info
-                for field, info in model.model_fields.items()
-                if (not info.exclude and not info.autoincrement)
-            }
-            field_string = ", ".join(f'"{field}"' for field in fields)
-            primary_key = self._get_primary_key(model)
+        # Reuse a single transaction for all inserts
+        async with self._ensure_transaction():
+            for model, model_objects in self._aggregate_models_by_table(objects):
+                # For each table, build batched insert queries
+                table_name = QueryIdentifier(model.get_table_name())
+                fields = {
+                    field: info
+                    for field, info in model.model_fields.items()
+                    if (not info.exclude and not info.autoincrement)
+                }
+                primary_key = self._get_primary_key(model)
+                field_names = list(
+                    fields.keys()
+                )  # Iterate over these in order for each row
+                field_identifiers = ", ".join(f'"{f}"' for f in field_names)
 
-            placeholders = ", ".join(f"${i}" for i in range(1, len(fields) + 1))
-            query = f"INSERT INTO {table_name} ({field_string}) VALUES ({placeholders})"
-            if primary_key:
-                query += f" RETURNING {primary_key}"
+                # Calculate max batch size based on number of fields
+                # Each row uses len(fields) parameters, so max_batch_size * len(fields) <= PG_MAX_PARAMETERS
+                max_batch_size = PG_MAX_PARAMETERS // len(fields)
+                # Cap at 5000 rows per batch to avoid excessive memory usage
+                max_batch_size = min(max_batch_size, 5000)
 
-            async with self._ensure_transaction():
-                for obj in model_objects:
-                    obj_values = obj.model_dump()
-                    values = [
-                        info.to_db_value(obj_values[field])
-                        for field, info in fields.items()
-                    ]
-                    result = await self.conn.fetchrow(query, *values)
+                total = len(model_objects)
+                num_batches = ceil(total / max_batch_size)
 
-                    if primary_key and result:
-                        setattr(obj, primary_key, result[primary_key])
-                    obj.clear_modified_attributes()
+                for batch_idx in range(num_batches):
+                    start_idx = batch_idx * max_batch_size
+                    end_idx = (batch_idx + 1) * max_batch_size
+                    batch_objects = model_objects[start_idx:end_idx]
 
+                    # Build the multi-row VALUES clause
+                    # e.g. for 3 rows with 2 columns, we'd want:
+                    #   VALUES ($1, $2), ($3, $4), ($5, $6)
+                    num_rows = len(batch_objects)
+                    if not num_rows:
+                        continue
+
+                    # placeholders per row: ($1, $2, ...)
+                    # but we have to shift the placeholder index for each row
+                    placeholders: list[str] = []
+                    values: list[Any] = []
+                    param_index = 1
+
+                    for obj in batch_objects:
+                        obj_values = obj.model_dump()
+                        row_values = []
+                        for field in field_names:
+                            info = fields[field]
+                            row_values.append(info.to_db_value(obj_values[field]))
+                        values.extend(row_values)
+                        row_placeholder = (
+                            "("
+                            + ", ".join(
+                                f"${p}"
+                                for p in range(
+                                    param_index, param_index + len(field_names)
+                                )
+                            )
+                            + ")"
+                        )
+                        placeholders.append(row_placeholder)
+                        param_index += len(field_names)
+
+                    placeholders_clause = ", ".join(placeholders)
+
+                    query = f"""
+                        INSERT INTO {table_name} ({field_identifiers})
+                        VALUES {placeholders_clause}
+                    """
+                    if primary_key:
+                        query += f" RETURNING {primary_key}"
+
+                    # Insert them in one go
+                    if primary_key:
+                        rows = await self.conn.fetch(query, *values)
+                        # 'rows' should be a list of Record objects, one per inserted row
+                        # Update each object in the same order
+                        for obj, row in zip(batch_objects, rows):
+                            setattr(obj, primary_key, row[primary_key])
+                    else:
+                        # No need to fetch anything if there's no primary key
+                        await self.conn.execute(query, *values)
+
+                    # Mark as unmodified
+                    for obj in batch_objects:
+                        obj.clear_modified_attributes()
+
+        # Register modification callbacks outside the main insert loop
         for obj in objects:
             obj.register_modified_callback(self.modification_tracker.track_modification)
 
+        # Clear modification status
         self.modification_tracker.clear_status(objects)
 
     @overload
