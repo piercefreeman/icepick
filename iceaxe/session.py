@@ -264,63 +264,46 @@ class DBConnection:
                 total = len(model_objects)
                 num_batches = ceil(total / max_batch_size)
 
+                # Build the base query
+                if primary_key:
+                    query = f"""
+                        INSERT INTO {table_name} ({field_identifiers})
+                        VALUES ({", ".join(f"${i}" for i in range(1, len(field_names) + 1))})
+                        RETURNING {primary_key}
+                    """
+                else:
+                    query = f"""
+                        INSERT INTO {table_name} ({field_identifiers})
+                        VALUES ({", ".join(f"${i}" for i in range(1, len(field_names) + 1))})
+                    """
+
                 for batch_idx in range(num_batches):
                     start_idx = batch_idx * max_batch_size
                     end_idx = (batch_idx + 1) * max_batch_size
                     batch_objects = model_objects[start_idx:end_idx]
 
-                    # Build the multi-row VALUES clause
-                    # e.g. for 3 rows with 2 columns, we'd want:
-                    #   VALUES ($1, $2), ($3, $4), ($5, $6)
-                    num_rows = len(batch_objects)
-                    if not num_rows:
+                    if not batch_objects:
                         continue
 
-                    # placeholders per row: ($1, $2, ...)
-                    # but we have to shift the placeholder index for each row
-                    placeholders: list[str] = []
-                    values: list[Any] = []
-                    param_index = 1
-
+                    # Convert objects to value lists
+                    values_list = []
                     for obj in batch_objects:
                         obj_values = obj.model_dump()
                         row_values = []
                         for field in field_names:
                             info = fields[field]
                             row_values.append(info.to_db_value(obj_values[field]))
-                        values.extend(row_values)
-                        row_placeholder = (
-                            "("
-                            + ", ".join(
-                                f"${p}"
-                                for p in range(
-                                    param_index, param_index + len(field_names)
-                                )
-                            )
-                            + ")"
-                        )
-                        placeholders.append(row_placeholder)
-                        param_index += len(field_names)
-
-                    placeholders_clause = ", ".join(placeholders)
-
-                    query = f"""
-                        INSERT INTO {table_name} ({field_identifiers})
-                        VALUES {placeholders_clause}
-                    """
-                    if primary_key:
-                        query += f" RETURNING {primary_key}"
+                        values_list.append(row_values)
 
                     # Insert them in one go
                     if primary_key:
-                        rows = await self.conn.fetch(query, *values)
-                        # 'rows' should be a list of Record objects, one per inserted row
-                        # Update each object in the same order
+                        # For returning queries, we can use fetchmany to get the primary keys
+                        rows = await self.conn.fetchmany(query, values_list)
                         for obj, row in zip(batch_objects, rows):
                             setattr(obj, primary_key, row[primary_key])
                     else:
-                        # No need to fetch anything if there's no primary key
-                        await self.conn.execute(query, *values)
+                        # For non-returning queries, we can use executemany
+                        await self.conn.executemany(query, values_list)
 
                     # Mark as unmodified
                     for obj in batch_objects:
