@@ -34,8 +34,8 @@ Ts = TypeVarTuple("Ts")
 
 TableType = TypeVar("TableType", bound=TableBase)
 
-# PostgreSQL has a limit of 65535 parameters per query
-PG_MAX_PARAMETERS = 65535
+# PostgreSQL has a limit of 32767 parameters per query (Short.MAX_VALUE)
+PG_MAX_PARAMETERS = 32767
 
 
 class DBConnection:
@@ -490,6 +490,8 @@ class DBConnection:
     async def update(self, objects: Sequence[TableBase]):
         """
         Update one or more model instances in the database. Only modified attributes will be updated.
+        Updates are batched together by grouping objects with the same modified fields, then using
+        executemany() for efficiency.
 
         ```python {{sticky: True}}
         # Update a single object
@@ -505,7 +507,6 @@ class DBConnection:
         ```
 
         :param objects: A sequence of TableBase instances to update
-
         """
         if not objects:
             return
@@ -522,30 +523,57 @@ class DBConnection:
 
                 primary_key_name = QueryIdentifier(primary_key)
 
+                # Group objects by their modified fields to batch similar updates
+                updates_by_fields: defaultdict[frozenset[str], list[TableBase]] = (
+                    defaultdict(list)
+                )
                 for obj in model_objects:
-                    modified_attrs = {
-                        k: obj.model_fields[k].to_db_value(v)
+                    modified_attrs = frozenset(
+                        k
                         for k, v in obj.get_modified_attributes().items()
                         if not obj.model_fields[k].exclude
-                    }
-                    if not modified_attrs:
+                    )
+                    if modified_attrs:
+                        updates_by_fields[modified_attrs].append(obj)
+
+                # Process each group of objects with the same modified fields
+                for modified_fields, group_objects in updates_by_fields.items():
+                    if not modified_fields:
                         continue
 
+                    # Build the UPDATE query for this group
                     set_clause = ", ".join(
-                        f"{QueryIdentifier(key)} = ${i}"
-                        for i, key in enumerate(modified_attrs.keys(), start=2)
+                        f"{QueryIdentifier(key)} = ${i + 2}"
+                        for i, key in enumerate(modified_fields)
                     )
-
                     query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_name} = $1"
-                    values = [getattr(obj, primary_key)] + list(modified_attrs.values())
+
+                    # Build the list of parameter sets for executemany
+                    param_sets = []
+                    for obj in group_objects:
+                        modified_attrs = {
+                            k: obj.model_fields[k].to_db_value(v)
+                            for k, v in obj.get_modified_attributes().items()
+                            if not obj.model_fields[k].exclude
+                        }
+                        # Parameters must be in the same order as the placeholders in the query
+                        params = [getattr(obj, primary_key)]
+                        params.extend(
+                            modified_attrs[field] for field in modified_fields
+                        )
+                        param_sets.append(params)
+
                     try:
-                        await self.conn.execute(query, *values)
+                        await self.conn.executemany(query, param_sets)
                     except Exception as e:
                         LOGGER.error(
-                            f"Error executing query: {query} with variables: {values}"
+                            f"Error executing query: {query} with parameter sets: {param_sets}"
                         )
                         raise e
-                    obj.clear_modified_attributes()
+
+                    # Clear modified state for successfully updated objects
+                    for obj in group_objects:
+                        obj.clear_modified_attributes()
 
         self.modification_tracker.clear_status(objects)
 

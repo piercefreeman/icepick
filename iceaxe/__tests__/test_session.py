@@ -1112,3 +1112,55 @@ async def test_json_upsert(db_connection: DBConnection):
     assert len(result) == 1
     assert result[0].settings == {"theme": "dark", "notifications": True}
     assert result[0].metadata == {"version": 2, "last_updated": "2024-01-01"}
+
+
+@pytest.mark.asyncio
+async def test_db_connection_update_batched(db_connection: DBConnection):
+    """Test that updates are properly batched when dealing with many objects and different field combinations."""
+    # Create test data with different update patterns
+    users_group1 = [
+        UserDemo(name=f"User{i}", email=f"user{i}@example.com") for i in range(10)
+    ]
+    users_group2 = [
+        UserDemo(name=f"User{i}", email=f"user{i}@example.com") for i in range(10, 20)
+    ]
+    users_group3 = [
+        UserDemo(name=f"User{i}", email=f"user{i}@example.com") for i in range(20, 30)
+    ]
+    all_users = users_group1 + users_group2 + users_group3
+    await db_connection.insert(all_users)
+
+    # Modify different fields for different groups to test batching by modified fields
+    for user in users_group1:
+        user.name = f"Updated{user.name}"  # Only name modified
+
+    for user in users_group2:
+        user.email = f"updated_{user.email}"  # Only email modified
+
+    for user in users_group3:
+        user.name = f"Updated{user.name}"  # Both fields modified
+        user.email = f"updated_{user.email}"
+
+    await db_connection.update(all_users)
+
+    # Verify all updates were applied correctly
+    result = await db_connection.conn.fetch("SELECT * FROM userdemo ORDER BY id")
+    assert len(result) == 30
+
+    # Check group 1 (only names updated)
+    for i, row in enumerate(result[:10]):
+        assert row["name"] == f"UpdatedUser{i}"
+        assert row["email"] == f"user{i}@example.com"
+
+    # Check group 2 (only emails updated)
+    for i, row in enumerate(result[10:20]):
+        assert row["name"] == f"User{i+10}"
+        assert row["email"] == f"updated_user{i+10}@example.com"
+
+    # Check group 3 (both fields updated)
+    for i, row in enumerate(result[20:30]):
+        assert row["name"] == f"UpdatedUser{i+20}"
+        assert row["email"] == f"updated_user{i+20}@example.com"
+
+    # Verify all modifications were cleared
+    assert all(user.get_modified_attributes() == {} for user in all_users)
