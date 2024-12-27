@@ -1,6 +1,7 @@
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from json import loads as json_loads
+from math import ceil
 from typing import (
     Any,
     Literal,
@@ -11,7 +12,6 @@ from typing import (
     cast,
     overload,
 )
-from math import ceil
 
 import asyncpg
 from typing_extensions import TypeVarTuple
@@ -33,6 +33,9 @@ T = TypeVar("T")
 Ts = TypeVarTuple("Ts")
 
 TableType = TypeVar("TableType", bound=TableBase)
+
+# PostgreSQL has a limit of 65535 parameters per query
+PG_MAX_PARAMETERS = 65535
 
 
 class DBConnection:
@@ -211,7 +214,7 @@ class DBConnection:
 
         return None
 
-    async def insert(self, objects: Sequence[TableBase], MAX_BATCH_SIZE: int = 5000):
+    async def insert(self, objects: Sequence[TableBase]):
         """
         Insert one or more model instances into the database. If the model has an auto-incrementing
         primary key, it will be populated on the instances after insertion.
@@ -247,15 +250,23 @@ class DBConnection:
                     if (not info.exclude and not info.autoincrement)
                 }
                 primary_key = self._get_primary_key(model)
-                field_names = list(fields.keys())  # Iterate over these in order for each row
+                field_names = list(
+                    fields.keys()
+                )  # Iterate over these in order for each row
                 field_identifiers = ", ".join(f'"{f}"' for f in field_names)
 
+                # Calculate max batch size based on number of fields
+                # Each row uses len(fields) parameters, so max_batch_size * len(fields) <= PG_MAX_PARAMETERS
+                max_batch_size = PG_MAX_PARAMETERS // len(fields)
+                # Cap at 5000 rows per batch to avoid excessive memory usage
+                max_batch_size = min(max_batch_size, 5000)
+
                 total = len(model_objects)
-                num_batches = ceil(total / MAX_BATCH_SIZE)
+                num_batches = ceil(total / max_batch_size)
 
                 for batch_idx in range(num_batches):
-                    start_idx = batch_idx * MAX_BATCH_SIZE
-                    end_idx = (batch_idx + 1) * MAX_BATCH_SIZE
+                    start_idx = batch_idx * max_batch_size
+                    end_idx = (batch_idx + 1) * max_batch_size
                     batch_objects = model_objects[start_idx:end_idx]
 
                     # Build the multi-row VALUES clause
@@ -267,8 +278,8 @@ class DBConnection:
 
                     # placeholders per row: ($1, $2, ...)
                     # but we have to shift the placeholder index for each row
-                    placeholders : list[str] = []
-                    values : list[Any] = []
+                    placeholders: list[str] = []
+                    values: list[Any] = []
                     param_index = 1
 
                     for obj in batch_objects:
@@ -279,7 +290,14 @@ class DBConnection:
                             row_values.append(info.to_db_value(obj_values[field]))
                         values.extend(row_values)
                         row_placeholder = (
-                            "(" + ", ".join(f"${p}" for p in range(param_index, param_index + len(field_names))) + ")"
+                            "("
+                            + ", ".join(
+                                f"${p}"
+                                for p in range(
+                                    param_index, param_index + len(field_names)
+                                )
+                            )
+                            + ")"
                         )
                         placeholders.append(row_placeholder)
                         param_index += len(field_names)
