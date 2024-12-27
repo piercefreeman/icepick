@@ -277,7 +277,8 @@ class DatabaseHandler:
         if info.annotation is None:
             raise ValueError(f"Annotation must be provided for {table.__name__}.{key}")
 
-        is_nullable = has_null_type(info.annotation)
+        # Primary keys should never be nullable, regardless of their type annotation
+        is_nullable = not info.primary_key and has_null_type(info.annotation)
 
         # If we need to create enums or other db-backed types, we need to do that before
         # the column itself

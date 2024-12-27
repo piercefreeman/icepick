@@ -1119,7 +1119,10 @@ async def test_serial_only_on_create():
                 "explicit_data_type": ColumnType.SERIAL,
                 "table_name": "modela",
             },
-        )
+        ),
+        DryRunAction(
+            fn=actor.add_not_null, kwargs={"table_name": "modela", "column_name": "id"}
+        ),
     ]
 
     # Now, test the migration logic. We expect to see no changes to the id
@@ -1273,3 +1276,41 @@ def test_all_constraint_types(clear_all_database_objects):
     )
     assert index_constraint.columns == frozenset({"status"})
     assert index_constraint.constraint_name == "childmodel_status_idx"
+
+
+def test_primary_key_not_null(clear_all_database_objects):
+    """
+    Test that primary key fields are automatically marked as not-null in their
+    intermediary representation, since primary keys cannot be null.
+
+    This includes both explicitly set primary keys and auto-assigned ones.
+    """
+
+    class ExplicitModel(TableBase):
+        id: int = Field(primary_key=True)
+        name: str
+
+    class AutoAssignedModel(TableBase):
+        id: int | None = Field(default=None, primary_key=True)
+        name: str
+
+    migrator = DatabaseMemorySerializer()
+    db_objects = list(migrator.delegate([ExplicitModel, AutoAssignedModel]))
+
+    # Extract the column definitions
+    columns = [obj for obj, _ in db_objects if isinstance(obj, DBColumn)]
+
+    # Find the explicit primary key column
+    explicit_id_column = next(
+        c for c in columns if c.column_name == "id" and c.table_name == "explicitmodel"
+    )
+    assert not explicit_id_column.nullable
+
+    # Find the auto-assigned primary key column
+    auto_id_column = next(
+        c
+        for c in columns
+        if c.column_name == "id" and c.table_name == "autoassignedmodel"
+    )
+    assert not auto_id_column.nullable
+    assert auto_id_column.autoincrement
