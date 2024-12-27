@@ -21,17 +21,15 @@ def generate_test_users(count: int) -> Sequence[UserDemo]:
 
 
 @pytest.mark.asyncio
-@pytest.mark.benchmark
+@pytest.mark.integration_tests
 async def test_bulk_insert_performance(db_connection: DBConnection):
     """
     Test the performance of bulk inserting 500k records.
     """
-    # Generate 500k test users
     NUM_USERS = 500_000
     users = generate_test_users(NUM_USERS)
     LOGGER.info(f"Generated {NUM_USERS} test users")
 
-    # Time the insertion
     start_time = time.time()
 
     await db_connection.insert(users)
@@ -43,6 +41,5 @@ async def test_bulk_insert_performance(db_connection: DBConnection):
     CONSOLE.print(f"Total time: {total_time:.2f} seconds")
     CONSOLE.print(f"Records per second: {records_per_second:.2f}")
 
-    # Verify the count
     result = await db_connection.conn.fetchval("SELECT COUNT(*) FROM userdemo")
     assert result == NUM_USERS
