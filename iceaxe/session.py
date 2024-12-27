@@ -34,8 +34,8 @@ Ts = TypeVarTuple("Ts")
 
 TableType = TypeVar("TableType", bound=TableBase)
 
-# PostgreSQL has a limit of 65535 parameters per query
-PG_MAX_PARAMETERS = 65535
+# PostgreSQL has a limit of 32767 parameters per query (Short.MAX_VALUE)
+PG_MAX_PARAMETERS = 32767
 
 
 class DBConnection:
@@ -250,85 +250,45 @@ class DBConnection:
                     if (not info.exclude and not info.autoincrement)
                 }
                 primary_key = self._get_primary_key(model)
-                field_names = list(
-                    fields.keys()
-                )  # Iterate over these in order for each row
+                field_names = list(fields.keys())
                 field_identifiers = ", ".join(f'"{f}"' for f in field_names)
 
-                # Calculate max batch size based on number of fields
-                # Each row uses len(fields) parameters, so max_batch_size * len(fields) <= PG_MAX_PARAMETERS
-                max_batch_size = PG_MAX_PARAMETERS // len(fields)
-                # Cap at 5000 rows per batch to avoid excessive memory usage
-                max_batch_size = min(max_batch_size, 5000)
-
-                total = len(model_objects)
-                num_batches = ceil(total / max_batch_size)
-
-                for batch_idx in range(num_batches):
-                    start_idx = batch_idx * max_batch_size
-                    end_idx = (batch_idx + 1) * max_batch_size
-                    batch_objects = model_objects[start_idx:end_idx]
-
-                    # Build the multi-row VALUES clause
-                    # e.g. for 3 rows with 2 columns, we'd want:
-                    #   VALUES ($1, $2), ($3, $4), ($5, $6)
-                    num_rows = len(batch_objects)
-                    if not num_rows:
-                        continue
-
-                    # placeholders per row: ($1, $2, ...)
-                    # but we have to shift the placeholder index for each row
-                    placeholders: list[str] = []
-                    values: list[Any] = []
-                    param_index = 1
-
-                    for obj in batch_objects:
-                        obj_values = obj.model_dump()
-                        row_values = []
-                        for field in field_names:
-                            info = fields[field]
-                            row_values.append(info.to_db_value(obj_values[field]))
-                        values.extend(row_values)
-                        row_placeholder = (
-                            "("
-                            + ", ".join(
-                                f"${p}"
-                                for p in range(
-                                    param_index, param_index + len(field_names)
-                                )
-                            )
-                            + ")"
-                        )
-                        placeholders.append(row_placeholder)
-                        param_index += len(field_names)
-
-                    placeholders_clause = ", ".join(placeholders)
-
+                # Build the base query
+                if primary_key:
                     query = f"""
                         INSERT INTO {table_name} ({field_identifiers})
-                        VALUES {placeholders_clause}
+                        VALUES ({", ".join(f"${i}" for i in range(1, len(field_names) + 1))})
+                        RETURNING {primary_key}
                     """
-                    if primary_key:
-                        query += f" RETURNING {primary_key}"
+                else:
+                    query = f"""
+                        INSERT INTO {table_name} ({field_identifiers})
+                        VALUES ({", ".join(f"${i}" for i in range(1, len(field_names) + 1))})
+                    """
 
+                for batch_objects, values_list in self._batch_objects_and_values(
+                    model_objects, field_names, fields
+                ):
                     # Insert them in one go
                     if primary_key:
-                        rows = await self.conn.fetch(query, *values)
-                        # 'rows' should be a list of Record objects, one per inserted row
-                        # Update each object in the same order
+                        # For returning queries, we can use fetchmany to get the primary keys
+                        rows = await self.conn.fetchmany(query, values_list)
                         for obj, row in zip(batch_objects, rows):
                             setattr(obj, primary_key, row[primary_key])
                     else:
-                        # No need to fetch anything if there's no primary key
-                        await self.conn.execute(query, *values)
+                        # For non-returning queries, we can use executemany
+                        await self.conn.executemany(query, values_list)
 
                     # Mark as unmodified
                     for obj in batch_objects:
                         obj.clear_modified_attributes()
 
         # Register modification callbacks outside the main insert loop
-        for obj in objects:
-            obj.register_modified_callback(self.modification_tracker.track_modification)
+        if self.modification_tracker.verbosity:
+            for obj in objects:
+                obj.register_modified_callback(
+                    self.modification_tracker.track_modification
+                )
 
         # Clear modification status
         self.modification_tracker.clear_status(objects)
@@ -490,6 +450,8 @@ class DBConnection:
     async def update(self, objects: Sequence[TableBase]):
         """
         Update one or more model instances in the database. Only modified attributes will be updated.
+        Updates are batched together by grouping objects with the same modified fields, then using
+        executemany() for efficiency.
 
         ```python {{sticky: True}}
         # Update a single object
@@ -505,7 +467,6 @@ class DBConnection:
         ```
 
         :param objects: A sequence of TableBase instances to update
-
         """
         if not objects:
             return
@@ -522,30 +483,51 @@ class DBConnection:
 
                 primary_key_name = QueryIdentifier(primary_key)
 
+                # Group objects by their modified fields to batch similar updates
+                updates_by_fields: defaultdict[frozenset[str], list[TableBase]] = (
+                    defaultdict(list)
+                )
                 for obj in model_objects:
-                    modified_attrs = {
-                        k: obj.model_fields[k].to_db_value(v)
+                    modified_attrs = frozenset(
+                        k
                         for k, v in obj.get_modified_attributes().items()
                         if not obj.model_fields[k].exclude
-                    }
-                    if not modified_attrs:
+                    )
+                    if modified_attrs:
+                        updates_by_fields[modified_attrs].append(obj)
+
+                # Process each group of objects with the same modified fields
+                for modified_fields, group_objects in updates_by_fields.items():
+                    if not modified_fields:
                         continue
 
-                    set_clause = ", ".join(
-                        f"{QueryIdentifier(key)} = ${i}"
-                        for i, key in enumerate(modified_attrs.keys(), start=2)
-                    )
+                    # Build the UPDATE query for this group
+                    field_names = list(modified_fields)
+                    fields = {field: model.model_fields[field] for field in field_names}
 
+                    # Build the UPDATE query - note we need one extra parameter per row for the WHERE clause
+                    set_clause = ", ".join(
+                        f"{QueryIdentifier(key)} = ${i + 2}"
+                        for i, key in enumerate(field_names)
+                    )
                     query = f"UPDATE {table_name} SET {set_clause} WHERE {primary_key_name} = $1"
-                    values = [getattr(obj, primary_key)] + list(modified_attrs.values())
-                    try:
-                        await self.conn.execute(query, *values)
-                    except Exception as e:
-                        LOGGER.error(
-                            f"Error executing query: {query} with variables: {values}"
-                        )
-                        raise e
-                    obj.clear_modified_attributes()
+
+                    for batch_objects, values_list in self._batch_objects_and_values(
+                        group_objects,
+                        field_names,
+                        fields,
+                        extra_params_per_row=1,  # For the WHERE primary_key parameter
+                    ):
+                        # Add primary key as first parameter for each row
+                        for i, obj in enumerate(batch_objects):
+                            values_list[i].insert(0, getattr(obj, primary_key))
+
+                        # Execute the batch update
+                        await self.conn.executemany(query, values_list)
+
+                        # Clear modified state for successfully updated objects
+                        for obj in batch_objects:
+                            obj.clear_modified_attributes()
 
         self.modification_tracker.clear_status(objects)
 
@@ -739,3 +721,51 @@ class DBConnection:
                 yield
         else:
             yield
+
+    def _batch_objects_and_values(
+        self,
+        objects: Sequence[TableBase],
+        field_names: list[str],
+        fields: dict[str, Any],
+        *,
+        extra_params_per_row: int = 0,
+    ):
+        """
+        Helper function to batch objects and their values for database operations.
+        Handles batching to stay under PostgreSQL's parameter limits.
+
+        :param objects: Sequence of objects to batch
+        :param field_names: List of field names to process
+        :param fields: Dictionary of field info
+        :param extra_params_per_row: Additional parameters per row beyond the field values
+        :return: Generator of (batch_objects, values_list) tuples
+        """
+        # Calculate max batch size based on number of fields plus any extra parameters
+        # Each row uses (len(fields) + extra_params_per_row) parameters
+        params_per_row = len(field_names) + extra_params_per_row
+        max_batch_size = PG_MAX_PARAMETERS // params_per_row
+        # Cap at 5000 rows per batch to avoid excessive memory usage
+        max_batch_size = min(max_batch_size, 5000)
+
+        total = len(objects)
+        num_batches = ceil(total / max_batch_size)
+
+        for batch_idx in range(num_batches):
+            start_idx = batch_idx * max_batch_size
+            end_idx = (batch_idx + 1) * max_batch_size
+            batch_objects = objects[start_idx:end_idx]
+
+            if not batch_objects:
+                continue
+
+            # Convert objects to value lists
+            values_list = []
+            for obj in batch_objects:
+                obj_values = obj.model_dump()
+                row_values = []
+                for field in field_names:
+                    info = fields[field]
+                    row_values.append(info.to_db_value(obj_values[field]))
+                values_list.append(row_values)
+
+            yield batch_objects, values_list

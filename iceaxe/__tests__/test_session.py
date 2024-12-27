@@ -1,4 +1,7 @@
+from contextlib import asynccontextmanager
 from enum import StrEnum
+from typing import Type
+from unittest.mock import AsyncMock
 
 import asyncpg
 import pytest
@@ -12,13 +15,14 @@ from iceaxe.__tests__.conf_models import (
     UserDemo,
 )
 from iceaxe.alias_values import alias
-from iceaxe.base import TableBase
+from iceaxe.base import INTERNAL_TABLE_FIELDS, TableBase
 from iceaxe.field import Field
 from iceaxe.functions import func
 from iceaxe.queries import QueryBuilder
 from iceaxe.queries_str import sql
 from iceaxe.schemas.cli import create_all
 from iceaxe.session import (
+    PG_MAX_PARAMETERS,
     DBConnection,
 )
 from iceaxe.typing import column
@@ -1112,3 +1116,162 @@ async def test_json_upsert(db_connection: DBConnection):
     assert len(result) == 1
     assert result[0].settings == {"theme": "dark", "notifications": True}
     assert result[0].metadata == {"version": 2, "last_updated": "2024-01-01"}
+
+
+@pytest.mark.asyncio
+async def test_db_connection_update_batched(db_connection: DBConnection):
+    """Test that updates are properly batched when dealing with many objects and different field combinations."""
+    # Create test data with different update patterns
+    users_group1 = [
+        UserDemo(name=f"User{i}", email=f"user{i}@example.com") for i in range(10)
+    ]
+    users_group2 = [
+        UserDemo(name=f"User{i}", email=f"user{i}@example.com") for i in range(10, 20)
+    ]
+    users_group3 = [
+        UserDemo(name=f"User{i}", email=f"user{i}@example.com") for i in range(20, 30)
+    ]
+    all_users = users_group1 + users_group2 + users_group3
+    await db_connection.insert(all_users)
+
+    # Modify different fields for different groups to test batching by modified fields
+    for user in users_group1:
+        user.name = f"Updated{user.name}"  # Only name modified
+
+    for user in users_group2:
+        user.email = f"updated_{user.email}"  # Only email modified
+
+    for user in users_group3:
+        user.name = f"Updated{user.name}"  # Both fields modified
+        user.email = f"updated_{user.email}"
+
+    await db_connection.update(all_users)
+
+    # Verify all updates were applied correctly
+    result = await db_connection.conn.fetch("SELECT * FROM userdemo ORDER BY id")
+    assert len(result) == 30
+
+    # Check group 1 (only names updated)
+    for i, row in enumerate(result[:10]):
+        assert row["name"] == f"UpdatedUser{i}"
+        assert row["email"] == f"user{i}@example.com"
+
+    # Check group 2 (only emails updated)
+    for i, row in enumerate(result[10:20]):
+        assert row["name"] == f"User{i+10}"
+        assert row["email"] == f"updated_user{i+10}@example.com"
+
+    # Check group 3 (both fields updated)
+    for i, row in enumerate(result[20:30]):
+        assert row["name"] == f"UpdatedUser{i+20}"
+        assert row["email"] == f"updated_user{i+20}@example.com"
+
+    # Verify all modifications were cleared
+    assert all(user.get_modified_attributes() == {} for user in all_users)
+
+
+#
+# Batch query construction
+#
+
+
+def assert_expected_user_fields(user: Type[UserDemo]):
+    # Verify UserDemo structure hasn't changed - if this fails, update the parameter calculations below
+    assert {
+        key for key in UserDemo.model_fields.keys() if key not in INTERNAL_TABLE_FIELDS
+    } == {"id", "name", "email"}
+    assert UserDemo.model_fields["id"].primary_key
+    assert UserDemo.model_fields["id"].default is None
+    return True
+
+
+@asynccontextmanager
+async def mock_transaction():
+    yield
+
+
+@pytest.mark.asyncio
+async def test_batch_insert_exceeds_parameters():
+    """
+    Test that insert() correctly batches operations when we exceed Postgres parameter limits.
+    We'll create enough objects with enough fields that a single query would exceed PG_MAX_PARAMETERS.
+    """
+    assert assert_expected_user_fields(UserDemo)
+
+    # Mock the connection
+    mock_conn = AsyncMock()
+    mock_conn.fetchmany = AsyncMock(return_value=[{"id": i} for i in range(1000)])
+    mock_conn.executemany = AsyncMock()
+    mock_conn.transaction = mock_transaction
+
+    db = DBConnection(mock_conn)
+
+    # Calculate how many objects we need to exceed the parameter limit
+    # Each object has 2 fields (name, email) in UserDemo
+    # So each object uses 2 parameters
+    objects_needed = (PG_MAX_PARAMETERS // 2) + 1
+    users = [
+        UserDemo(name=f"User {i}", email=f"user{i}@example.com")
+        for i in range(objects_needed)
+    ]
+
+    # Insert the objects
+    await db.insert(users)
+
+    # We should have made at least 2 calls to fetchmany since we exceeded the parameter limit
+    assert len(mock_conn.fetchmany.mock_calls) >= 2
+
+    # Verify the structure of the first call
+    first_call = mock_conn.fetchmany.mock_calls[0]
+    assert "INSERT INTO" in first_call.args[0]
+    assert '"name"' in first_call.args[0]
+    assert '"email"' in first_call.args[0]
+    assert "RETURNING" in first_call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_batch_update_exceeds_parameters():
+    """
+    Test that update() correctly batches operations when we exceed Postgres parameter limits.
+    We'll create enough objects with enough modified fields that a single query would exceed PG_MAX_PARAMETERS.
+    """
+    assert assert_expected_user_fields(UserDemo)
+
+    # Mock the connection
+    mock_conn = AsyncMock()
+    mock_conn.executemany = AsyncMock()
+    mock_conn.transaction = mock_transaction
+
+    db = DBConnection(mock_conn)
+
+    # Calculate how many objects we need to exceed the parameter limit
+    # Each UPDATE row needs:
+    # - 1 parameter for WHERE clause (id)
+    # - 2 parameters for SET clause (name, email)
+    # So each object uses 3 parameters
+    objects_needed = (PG_MAX_PARAMETERS // 3) + 1
+    users: list[UserDemo] = []
+
+    # Create objects and mark all fields as modified
+    for i in range(objects_needed):
+        user = UserDemo(id=i, name=f"User {i}", email=f"user{i}@example.com")
+        user.clear_modified_attributes()
+
+        # Simulate modifications to both fields
+        user.name = f"New User {i}"
+        user.email = f"newuser{i}@example.com"
+
+        users.append(user)
+
+    # Update the objects
+    await db.update(users)
+
+    # We should have made at least 2 calls to executemany since we exceeded the parameter limit
+    assert len(mock_conn.executemany.mock_calls) >= 2
+
+    # Verify the structure of the first call
+    first_call = mock_conn.executemany.mock_calls[0]
+    assert "UPDATE" in first_call.args[0]
+    assert "SET" in first_call.args[0]
+    assert "WHERE" in first_call.args[0]
+    assert '"id"' in first_call.args[0]
