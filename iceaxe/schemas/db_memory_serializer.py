@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from inspect import isgenerator
-from typing import Any, Generator, Sequence, Type, TypeVar
+from typing import Any, Generator, Sequence, Type, TypeVar, Union
 from uuid import UUID
 
 from pydantic_core import PydanticUndefined
@@ -29,9 +29,12 @@ from iceaxe.schemas.actions import (
 )
 from iceaxe.schemas.db_stubs import (
     DBColumn,
+    DBColumnPointer,
     DBConstraint,
+    DBConstraintPointer,
     DBObject,
     DBObjectPointer,
+    DBPointerOr,
     DBTable,
     DBType,
     DBTypePointer,
@@ -44,11 +47,13 @@ from iceaxe.typing import (
     PRIMITIVE_WRAPPER_TYPES,
 )
 
+NodeYieldType = Union[DBObject, DBObjectPointer, "NodeDefinition"]
+
 
 @dataclass
 class NodeDefinition:
     node: DBObject
-    dependencies: list[DBObject]
+    dependencies: list[DBObject | DBObjectPointer]
     force_no_dependencies: bool
 
 
@@ -110,18 +115,42 @@ class DatabaseMemorySerializer:
         for _, dependencies in db_objects:
             for dep in dependencies:
                 if isinstance(dep, DBObjectPointer):
-                    if dep.representation() not in db_objects_by_name:
+                    if isinstance(dep, DBPointerOr):
+                        # For OR pointers, at least one of the pointers must be resolvable
+                        if not any(
+                            pointer.representation() in db_objects_by_name
+                            for pointer in dep.pointers
+                        ):
+                            raise ValueError(
+                                f"None of the OR pointers {[p.representation() for p in dep.pointers]} found in the defined database objects"
+                            )
+                    elif dep.representation() not in db_objects_by_name:
                         raise ValueError(
                             f"Pointer {dep.representation()} not found in the defined database objects"
                         )
 
         # Map the potentially different objects to the same object
-        graph_edges = {
-            db_objects_by_name[obj.representation()]: [
-                db_objects_by_name[dep.representation()] for dep in dependencies
-            ]
-            for obj, dependencies in db_objects
-        }
+        graph_edges = {}
+        for obj, dependencies in db_objects:
+            resolved_deps = []
+            for dep in dependencies:
+                if isinstance(dep, DBObjectPointer):
+                    if isinstance(dep, DBPointerOr):
+                        # Add all resolvable pointers as dependencies
+                        resolved_deps.extend(
+                            db_objects_by_name[pointer.representation()]
+                            for pointer in dep.pointers
+                            if pointer.representation() in db_objects_by_name
+                        )
+                    else:
+                        resolved_deps.append(db_objects_by_name[dep.representation()])
+                else:
+                    resolved_deps.append(dep)
+
+            if isinstance(obj, DBObjectPointer):
+                continue
+
+            graph_edges[db_objects_by_name[obj.representation()]] = resolved_deps
 
         # Construct the directed acyclic graph
         ts = ActionTopologicalSorter(graph_edges)
@@ -215,9 +244,6 @@ class TypeDeclarationResponse(DBObject):
 
     def migrate(self, previous, actor: DatabaseActions):
         raise NotImplementedError()
-
-
-NodeYieldType = DBObject | NodeDefinition
 
 
 class DatabaseHandler:
@@ -430,7 +456,32 @@ class DatabaseHandler:
                         target_table=target_table,
                         target_columns=frozenset({target_column}),
                     ),
-                )
+                ),
+                dependencies=[
+                    # Additional dependencies to ensure the target table/column is created first
+                    DBTable(table_name=target_table),
+                    DBColumnPointer(
+                        table_name=target_table,
+                        column_name=target_column,
+                    ),
+                    # Ensure the primary key constraint exists before the foreign key
+                    # constraint. Postgres also accepts a unique constraint on the same.
+                    DBPointerOr(
+                        pointers=tuple(
+                            [
+                                DBConstraintPointer(
+                                    table_name=target_table,
+                                    columns=frozenset([target_column]),
+                                    constraint_type=constraint_type,
+                                )
+                                for constraint_type in [
+                                    ConstraintType.PRIMARY_KEY,
+                                    ConstraintType.UNIQUE,
+                                ]
+                            ]
+                        ),
+                    ),
+                ],
             )
 
         if info.index:
@@ -509,10 +560,10 @@ class DatabaseHandler:
         """
 
         def _format_dependencies(dependencies: Sequence[NodeYieldType]):
-            all_dependencies: list[DBObject] = []
+            all_dependencies: list[DBObject | DBObjectPointer] = []
 
             for value in dependencies:
-                if isinstance(value, DBObject):
+                if isinstance(value, (DBObject, DBObjectPointer)):
                     all_dependencies.append(value)
                 elif isinstance(value, NodeDefinition):
                     all_dependencies.append(value.node)

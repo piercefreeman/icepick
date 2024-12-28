@@ -374,3 +374,32 @@ class DBType(DBTypeBase, DBObject):
             values=self.values,
             reference_columns=self.reference_columns | other.reference_columns,
         )
+
+
+class DBConstraintPointer(DBObjectPointer):
+    """
+    A pointer to a constraint that will be created. Used for dependency tracking
+    without needing to know the full constraint definition.
+    """
+
+    table_name: str
+    columns: frozenset[str]
+    constraint_type: ConstraintType
+
+    def representation(self) -> str:
+        # Match the representation of DBConstraint
+        return f"{self.table_name}.{sorted(self.columns)}.{self.constraint_type}"
+
+
+class DBPointerOr(DBObjectPointer):
+    """
+    A pointer that represents an OR relationship between multiple pointers.
+    When resolving dependencies, any of the provided pointers being present
+    will satisfy the dependency.
+    """
+
+    pointers: tuple[DBObjectPointer, ...]
+
+    def representation(self) -> str:
+        # Sort the representations to ensure consistent ordering
+        return "OR(" + ",".join(sorted(p.representation() for p in self.pointers)) + ")"

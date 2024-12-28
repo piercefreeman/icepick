@@ -1314,3 +1314,115 @@ def test_primary_key_not_null(clear_all_database_objects):
     )
     assert not auto_id_column.nullable
     assert auto_id_column.autoincrement
+
+
+@pytest.mark.asyncio
+async def test_foreign_key_table_dependency():
+    """
+    Test that foreign key constraints properly depend on the referenced table being created first.
+    This test verifies that the foreign key constraint is ordered after both tables are created.
+    """
+
+    class TargetModel(TableBase):
+        id: int = Field(primary_key=True)
+        value: str
+
+    class SourceModel(TableBase):
+        id: int = Field(primary_key=True)
+        target_id: int = Field(foreign_key="targetmodel.id")
+
+    migrator = DatabaseMemorySerializer()
+
+    # Make sure Source is parsed before Target so we can make sure our foreign-key
+    # constraint actually re-orders the final objects.
+    db_objects = list(migrator.delegate([SourceModel, TargetModel]))
+    ordering = migrator.order_db_objects(db_objects)
+
+    # Get all objects in their sorted order
+    sorted_objects = sorted(
+        [obj for obj, _ in db_objects], key=lambda obj: ordering[obj]
+    )
+
+    # Find the positions of key objects
+    target_table_pos = next(
+        i
+        for i, obj in enumerate(sorted_objects)
+        if isinstance(obj, DBTable) and obj.table_name == "targetmodel"
+    )
+    source_table_pos = next(
+        i
+        for i, obj in enumerate(sorted_objects)
+        if isinstance(obj, DBTable) and obj.table_name == "sourcemodel"
+    )
+    target_column_pos = next(
+        i
+        for i, obj in enumerate(sorted_objects)
+        if isinstance(obj, DBColumn)
+        and obj.table_name == "targetmodel"
+        and obj.column_name == "id"
+    )
+    target_pk_pos = next(
+        i
+        for i, obj in enumerate(sorted_objects)
+        if isinstance(obj, DBConstraint)
+        and obj.constraint_type == ConstraintType.PRIMARY_KEY
+        and obj.table_name == "targetmodel"
+    )
+    fk_constraint_pos = next(
+        i
+        for i, obj in enumerate(sorted_objects)
+        if isinstance(obj, DBConstraint)
+        and obj.constraint_type == ConstraintType.FOREIGN_KEY
+        and obj.table_name == "sourcemodel"
+    )
+
+    # The foreign key constraint should come after both tables and the target column are created
+    assert (
+        target_table_pos < fk_constraint_pos
+    ), "Foreign key constraint should be created after target table"
+    assert (
+        source_table_pos < fk_constraint_pos
+    ), "Foreign key constraint should be created after source table"
+    assert (
+        target_column_pos < fk_constraint_pos
+    ), "Foreign key constraint should be created after target column"
+    assert (
+        target_pk_pos < fk_constraint_pos
+    ), "Foreign key constraint should be created after target primary key"
+
+    # Verify the actual migration actions
+    actor = DatabaseActions()
+    actions = await migrator.build_actions(
+        actor, [], {}, [obj for obj, _ in db_objects], ordering
+    )
+
+    # Extract the table creation and foreign key constraint actions
+    table_creations = [
+        action
+        for action in actions
+        if isinstance(action, DryRunAction) and action.fn == actor.add_table
+    ]
+    fk_constraints = [
+        action
+        for action in actions
+        if isinstance(action, DryRunAction)
+        and action.fn == actor.add_constraint
+        and action.kwargs.get("constraint") == ConstraintType.FOREIGN_KEY
+    ]
+
+    # Verify that table creations come before foreign key constraints
+    assert len(table_creations) == 2
+    assert len(fk_constraints) == 1
+
+    table_creation_indices = [
+        i for i, action in enumerate(actions) if action in table_creations
+    ]
+    fk_constraint_indices = [
+        i for i, action in enumerate(actions) if action in fk_constraints
+    ]
+
+    assert all(
+        table_idx < fk_idx
+        for table_idx in table_creation_indices
+        for fk_idx in fk_constraint_indices
+    )
