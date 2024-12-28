@@ -1361,6 +1361,13 @@ async def test_foreign_key_table_dependency():
         and obj.table_name == "targetmodel"
         and obj.column_name == "id"
     )
+    target_pk_pos = next(
+        i
+        for i, obj in enumerate(sorted_objects)
+        if isinstance(obj, DBConstraint)
+        and obj.constraint_type == ConstraintType.PRIMARY_KEY
+        and obj.table_name == "targetmodel"
+    )
     fk_constraint_pos = next(
         i
         for i, obj in enumerate(sorted_objects)
@@ -1379,6 +1386,9 @@ async def test_foreign_key_table_dependency():
     assert (
         target_column_pos < fk_constraint_pos
     ), "Foreign key constraint should be created after target column"
+    assert (
+        target_pk_pos < fk_constraint_pos
+    ), "Foreign key constraint should be created after target primary key"
 
     # Verify the actual migration actions
     actor = DatabaseActions()
