@@ -432,8 +432,8 @@ class DatabaseHandler:
                     ),
                 ),
                 dependencies=[
+                    # Additional dependencies to ensure the target table/column is created first
                     DBTable(table_name=target_table),
-                    DBTable(table_name=table.get_table_name()),
                     DBColumnPointer(
                         table_name=target_table,
                         column_name=target_column,
