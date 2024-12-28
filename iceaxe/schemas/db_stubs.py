@@ -400,9 +400,6 @@ class DBPointerOr(DBObjectPointer):
 
     pointers: tuple[DBObjectPointer, ...]
 
-    def __init__(self, *pointers: DBObjectPointer):
-        self.pointers = pointers
-
     def representation(self) -> str:
         # Sort the representations to ensure consistent ordering
         return "OR(" + ",".join(sorted(p.representation() for p in self.pointers)) + ")"

@@ -467,17 +467,19 @@ class DatabaseHandler:
                     # Ensure the primary key constraint exists before the foreign key
                     # constraint. Postgres also accepts a unique constraint on the same.
                     DBPointerOr(
-                        *[
-                            DBConstraintPointer(
-                                table_name=target_table,
-                                columns=frozenset([target_column]),
-                                constraint_type=constraint_type,
-                            )
-                            for constraint_type in [
-                                ConstraintType.PRIMARY_KEY,
-                                ConstraintType.UNIQUE,
+                        pointers=tuple(
+                            [
+                                DBConstraintPointer(
+                                    table_name=target_table,
+                                    columns=frozenset([target_column]),
+                                    constraint_type=constraint_type,
+                                )
+                                for constraint_type in [
+                                    ConstraintType.PRIMARY_KEY,
+                                    ConstraintType.UNIQUE,
+                                ]
                             ]
-                        ]
+                        ),
                     ),
                 ],
             )
