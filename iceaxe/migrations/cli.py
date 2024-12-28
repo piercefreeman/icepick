@@ -4,9 +4,6 @@ from time import monotonic_ns
 from iceaxe.base import DBModelMetaclass, TableBase
 from iceaxe.io import resolve_package_path
 from iceaxe.logging import CONSOLE
-from iceaxe.migrations.client_io import fetch_migrations, sort_migrations
-from iceaxe.migrations.generator import MigrationGenerator
-from iceaxe.migrations.migrator import Migrator
 from iceaxe.schemas.db_serializer import DatabaseSerializer
 from iceaxe.session import DBConnection
 
@@ -35,6 +32,11 @@ async def handle_generate(
         handle_generate("my_project", db_connection, message=message)
     ```
     """
+    # Any local imports must be done here to avoid circular imports because migrations.__init__
+    # imports this file.
+    from iceaxe.migrations.client_io import fetch_migrations
+    from iceaxe.migrations.generator import MigrationGenerator
+    from iceaxe.migrations.migrator import Migrator
 
     CONSOLE.print("[bold blue]Generating migration to current schema")
 
@@ -122,6 +124,8 @@ async def handle_apply(
         project that's specified in pyproject.toml or setup.py.
 
     """
+    from iceaxe.migrations.client_io import fetch_migrations, sort_migrations
+    from iceaxe.migrations.migrator import Migrator
 
     migrations_path = resolve_package_path(package) / "migrations"
     if not migrations_path.exists():
@@ -178,6 +182,8 @@ async def handle_rollback(
         project that's specified in pyproject.toml or setup.py.
 
     """
+    from iceaxe.migrations.client_io import fetch_migrations, sort_migrations
+    from iceaxe.migrations.migrator import Migrator
 
     migrations_path = resolve_package_path(package) / "migrations"
     if not migrations_path.exists():

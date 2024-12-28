@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from inspect import isgenerator
-from typing import Any, Generator, Sequence, Type, TypeVar
+from typing import Any, Generator, Sequence, Type, TypeVar, Union
 from uuid import UUID
 
 from pydantic_core import PydanticUndefined
@@ -29,6 +29,7 @@ from iceaxe.schemas.actions import (
 )
 from iceaxe.schemas.db_stubs import (
     DBColumn,
+    DBColumnPointer,
     DBConstraint,
     DBObject,
     DBObjectPointer,
@@ -44,11 +45,13 @@ from iceaxe.typing import (
     PRIMITIVE_WRAPPER_TYPES,
 )
 
+NodeYieldType = Union[DBObject, DBObjectPointer, "NodeDefinition"]
+
 
 @dataclass
 class NodeDefinition:
     node: DBObject
-    dependencies: list[DBObject]
+    dependencies: list[DBObject | DBObjectPointer]
     force_no_dependencies: bool
 
 
@@ -215,9 +218,6 @@ class TypeDeclarationResponse(DBObject):
 
     def migrate(self, previous, actor: DatabaseActions):
         raise NotImplementedError()
-
-
-NodeYieldType = DBObject | NodeDefinition
 
 
 class DatabaseHandler:
@@ -430,7 +430,15 @@ class DatabaseHandler:
                         target_table=target_table,
                         target_columns=frozenset({target_column}),
                     ),
-                )
+                ),
+                dependencies=[
+                    DBTable(table_name=target_table),
+                    DBTable(table_name=table.get_table_name()),
+                    DBColumnPointer(
+                        table_name=target_table,
+                        column_name=target_column,
+                    ),
+                ],
             )
 
         if info.index:
@@ -509,10 +517,10 @@ class DatabaseHandler:
         """
 
         def _format_dependencies(dependencies: Sequence[NodeYieldType]):
-            all_dependencies: list[DBObject] = []
+            all_dependencies: list[DBObject | DBObjectPointer] = []
 
             for value in dependencies:
-                if isinstance(value, DBObject):
+                if isinstance(value, (DBObject, DBObjectPointer)):
                     all_dependencies.append(value)
                 elif isinstance(value, NodeDefinition):
                     all_dependencies.append(value.node)
