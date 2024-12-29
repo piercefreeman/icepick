@@ -1,0 +1,26 @@
+# Logging
+
+At a standard logging level, Iceaxe is conservative with what it logs.
+
+During development it's often useful to increase this verbosity to help diagnose the
+SQL queries that are actually sent to your database. You can set the `ICEAXE_LOG_LEVEL` environment
+variable to `DEBUG` to enable verbose logging:
+
+```bash
+ICEAXE_LOG_LEVEL=DEBUG poetry run runserver
+```
+
+This results in a lot of output, so you may want to pipe it to a file:
+
+```bash
+ICEAXE_LOG_LEVEL=DEBUG poetry run runserver > debug.log
+```
+
+Each entry in the log will be a JSON formatted, single-lined
+payload with the timestamp and the logged sql message (or whatever other
+message is logged by the iceaxe library). These JSON logs allow for
+easier machine parsing and analysis of query performance.
+
+```bash
+{"level": "DEBUG", "name": "iceaxe", "timestamp": "2021-10-14 15:00:00,000", "message": "SELECT * FROM users WHERE id = 1"}
+```

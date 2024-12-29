@@ -1,0 +1,271 @@
+# Selects
+
+`SELECT` statements are likely the most common operation you'll perform with Iceaxe. They're used to fetch
+data from the database and receive them in Python instances or primitives. Let's
+consider the following table definition to show how we can interact with
+different types of data:
+
+```python
+from iceaxe import DBConnection, select, TableBase, Field
+
+class Employee(TableBase):
+    id: int = Field(primary_key=True)
+    name: str
+    age: int
+```
+
+Let's start off with the following users in the database:
+
+| id | name              | age |
+|----|-------------------|-----|
+| 1  | Marcus Holloway   | 28  |
+| 2  | Astrid Keller     | 42  |
+| 3  | Jasper Okafor     | 36  |
+
+If we want to get an exact match for a single row, we can use the `select` function
+with an exact match filter for Marcus. You'd write this in the same way that you would check
+for equality in a Python if statement.
+
+```python
+query = select(Employee).where(Employee.name == "Marcus Holloway")
+```
+
+All defined class attributes in the `Employee` class are available as columns, and these
+columns can be used in equality operations like `==`, `!=`, `>`, `<`, `>=`, `<=`, etc. If we
+want, we can also preview the SQL and variables that are outputted for this query:
+
+```python
+query.build()
+> ('SELECT "employee".* FROM "employee" WHERE "employee"."name" = $1', ['Marcus Holloway'])
+```
+
+As you see from the build output from `query.build()`, we're constructing a SQL with a single
+WHERE filter that requests matches to `$1`. This is a placeholder for the actual value
+that is passed to the database engine separately. The database engine handles the escaping
+of any special values in this variable to avoid SQL injection attacks. Let's go ahead and execute
+this query against the database to get the actual values back:
+
+```python
+results = await conn.exec(query)
+results
+> [Employee(id=1, name='Marcus Holloway', age=28)]
+```
+
+This will return a list of `Employee` instances that match the query. These instances
+are full Python objects; you can access and modify their attributes as you would with any
+other object. Once received, it's detached from the database connection unless you explicitly
+choose to save it. For more details on how to update data, see the page on [update statements](./inserts).
+
+## Chaining conditions
+
+By default, conditions are combined with an `AND` operator. If you want to combine conditions with an `OR`
+operator, you can use the `or_` function. For example, if you want to get all employees that are either 28 or 36 years old:
+
+```python
+from iceaxe import and_, or_
+
+query = select(Employee).where(or_(Employee.age == 28, Employee.age == 36))
+
+query.build()
+> ('SELECT "employee".* FROM "employee"
+    WHERE ("employee"."age" = $1 OR "employee"."age" = $2)', [28, 36])
+```
+
+These operations nest within themselves to create more complicated selection chains.
+Let's extend the filter above to also get anyone who's named Marcus Holloway
+or Astrid Keller. We expect to only receive one result.
+
+```python
+query = select(Employee).where(
+    and_(
+        or_(
+            Employee.age == 28, Employee.age == 36,
+        ),
+        or_(
+            Employee.name == "Marcus Holloway", Employee.name == "Astrid Keller"
+        )
+    )
+)
+
+query.build()
+> ('SELECT "employee".* FROM "employee"
+    WHERE (
+        ("employee"."age" = $1 OR "employee"."age" = $2)
+        AND
+        ("employee"."name" = $3 OR "employee"."name" = $4)
+    )',
+    [28, 36, 'Marcus Holloway', 'Astrid Keller'])
+```
+
+Note that the outside `and_` is optional in this case since where will take care
+of that for you. Still, it can sometimes make your code a bit more readable to include it
+for more complicated query chains.
+
+## Limit columns
+
+In the above queries, we returned a full instance. For small queries the bandwidth of fetching an entire
+object is usually negligible compared to the convenience of having a full object that you can work with
+in other places in your pipeline. It's easier to track down references to `Employee` versus scattered strings
+that correspond to their name. Still - for larger queries or larger tables, there are times when it's way
+more efficient to only fetch the columns that you need. You can do this by specifying the columns you want
+within the initial selection:
+
+```python
+query = select((Employee.id, Employee.name)).where(Employee.name == "Marcus Holloway")
+
+query.build()
+> ('SELECT "employee"."id", "employee"."name" FROM "employee"
+    WHERE "employee"."name" = $1', ['Marcus Holloway'])
+```
+
+Unlike before when we passed a regular `Employee` class to the `select` function, we're now passing a tuple
+of the different columns that we want to fetch. For any selection of more than one object, you'll need
+to pass a tuple.
+
+## Filter lists
+
+Exact equality or boolean operations are not the only way to filter data. You can also use
+some extensions to filter data in a more complex way. For example, let's say that we
+want to get all employees that are either 28 or 36 years old. We _could_ make two separate
+equality filters like the example above. But it's often easier to use the `in_` function to
+filter data based on a list of values:
+
+```python
+from iceaxe import column
+
+query = select(Employee).where(column(Employee.age).in_([28, 36]))
+
+query.build()
+> ('SELECT "employee".* FROM "employee" WHERE "employee"."age" = ANY($1)', [[28, 36]])
+```
+
+This will work at runtime with or without the call to `column`. But if you use static analysis like mypy
+or pyright to validate your code, you'll need to use the `column` typecast to avoid type errors. Why?
+In Iceaxe, the type of the column mirrors the type of the instance attribute. For the purposes of static analysis,
+`Employee.age` here validates to an integer. And the integer primitive in Python doesn't have a method called
+`in_`. By using the `column` typecast, you're explicitly telling the static analysis tool that you're
+working with a column object that supports this method accessor.
+
+## Aggregation queries
+
+Aggregation queries allow you to perform calculations on groups of rows
+in your database. Iceaxe provides a simple way to construct these queries
+using the `group_by` method and aggregation functions. To make things more
+interesting, let's add a bit more data with some overlapping values:
+
+
+| id | name              | age |
+|----|-------------------|-----|
+| 1  | Marcus Holloway   | 28  |
+| 2  | Astrid Keller     | 42  |
+| 3  | Jasper Okafor     | 36  |
+| 4  | Kaitlyn Winters   | 36  |
+| 5  | Merilyn Keller    | 36  |
+
+Let's get the average age of all employees:
+
+```python
+from iceaxe import func
+
+query = select(func.avg(Employee.age))
+
+query.build()
+> ('SELECT avg("employee"."age") AS aggregate_0 FROM "employee"', [])
+
+await conn.exec(query)
+> [35.6]
+```
+
+Grouping rows and then executing these functions is even more powerful, because
+you can perform different rollups. A simple one to find the amount of employees by age.
+
+```python
+query = select(
+  (func.count(Employee.id), Employee.age),
+).group_by(Employee.age)
+
+query.build()
+> ('SELECT count("employee"."id") AS aggregate_0, "employee"."age" FROM "employee" GROUP BY "employee"."age"', [])
+
+await conn.exec(query)
+> [(1, 28), (3, 36), (1, 42)]
+```
+
+## Raw SQL
+
+<Note>
+Iceaxe has the philosophy that any queries constructed by the ORM
+should work efficiently and be typehinted correctly. If we can't typehint it correctly, we
+won't offer it within the Python layer. For these cases - and more complex queries in general -
+read this section to learn how to manually cast queries.
+</Note>
+
+If you're working on a more complex, and still want to receive the results as
+Iceaxe typed objects, you can do a manual casting of the results. Using the `text()`
+method of a selection query will override any other dynamic query building and
+just pass your SQL directly to the database engine.
+
+```python
+from iceaxe import sql
+
+query = select(Employee).text(
+    f"""
+    SELECT {sql.select(Employee)} FROM employee
+    WHERE {sql(Employee.age)} = $1
+    """,
+    28
+)
+query.build()
+> 'SELECT "employee"."id" AS "employee_id", "employee"."name" AS "employee_name", "employee"."age" AS "employee_age"
+> FROM employee
+> WHERE "employee"."age" = $1'
+>, [28]
+```
+
+The `sql` class is a utility class that allows you to cast Table definitions to a SQL fstring. This gives you
+the ability to use the same Table definitions in your SQL as you do in your Python code, alongside basic typehinting
+of table columns. If you change column names, your linter should detect the conflict in this SQL as well.
+
+There are a few different sql methods depending on where you're inserting them in your SQL.
+
+| Method | Input | Output | Description |
+|--------|--------|---------|-------------|
+| `sql.select(Table)` | `User` | `"users"."id" AS "users_id", "users"."name" AS "users_name"` | Full table selection with aliased columns |
+| `sql.select(Table.column)` | `User.name` | `"users"."name" AS "users_name"` | Single column selection with alias |
+| `sql(Table)` | `User` | `"users"` | Qualified table name |
+| `sql(Table.column)` | `User.name` | `"users"."name"` | Qualified column name |
+| `sql.raw(Table)` | `User` | `"users"` | Raw table name |
+| `sql.raw(Table.column)` | `User.name` | `"name"` | Raw column name |
+
+Always use sql.select for select queries, since these will internally map to our ORM convention that's required to
+cast the results to the correct Python object during postprocessing.
+
+We will typecast the results as whatever you pass to the original `select` method, so make sure this value is always
+kept in sync with what you query in your manual SQL text.
+
+The `text` method accept a single string of a SQL operation, then as many variables as you pass
+within the keyword arguments. These variables are accessible to your SQL string as one-indexed
+variables that correspond to the order of arguments. These are formatted as `$1`, `$2`, etc. Variables
+passed via Python variable will be encoded correctly to avoid SQL injection attacks so are recommended
+for any user input.
+
+```python
+results = await conn.exec(query)
+> [Employee(id=1, name='Marcus Holloway', age=28)]
+```
+
+If you have more complicated selection logic that doesn't directly reference table selections via `sql.select`,
+we also support aliasing values to directly extract them from the query.
+
+```python
+from iceaxe import alias
+
+query = select(alias(int, "age_int")).text(
+    f"""
+    SELECT COUNT(*) as age_int FROM employee 
+    WHERE {sql(Employee.age)} = $1
+    """,
+    28
+)
+```
+

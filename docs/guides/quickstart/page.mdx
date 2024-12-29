@@ -1,0 +1,183 @@
+# Quickstart
+
+## Installation
+
+If you're using poetry to manage your dependencies:
+
+```bash
+poetry add iceaxe
+```
+
+Otherwise install with pip:
+
+```bash
+pip install iceaxe
+```
+
+## Usage
+
+Define your models as a `TableBase` subclass:
+
+```python
+from iceaxe import TableBase
+
+class Person(TableBase):
+    id: int
+    name: str
+    age: int
+```
+
+TableBase is a subclass of Pydantic's `BaseModel`, so you get all of the validation and Field customization
+out of the box. We provide our own `Field` constructor that adds database-specific configuration. For instance, to make the
+`id` field a primary key / auto-incrementing you can do:
+
+```python
+from iceaxe import Field
+
+class Person(TableBase):
+    id: int = Field(primary_key=True)
+    name: str
+    age: int
+```
+
+Okay now you have a model. How do you interact with it?
+
+Databases are based on a few core primitives to insert data, update it, and fetch it out again.
+To do so you'll need a _database connection_, which is a connection over the network from your code
+to your Postgres database. The `DBConnection` is the core class for all ORM actions against the database.
+
+```python
+from iceaxe import DBConnection
+import asyncpg
+
+conn = DBConnection(
+    await asyncpg.connect(
+        host="localhost",
+        port=5432,
+        user="db_user",
+        password="yoursecretpassword",
+        database="your_db",
+    )
+)
+```
+
+The Person class currently just lives in memory. To back it with a full
+database table, we can run raw SQL or run a [migration](/iceaxe/guides/migrations) to
+add it automatically:
+
+```python
+await conn.conn.execute(
+    """
+    CREATE TABLE IF NOT EXISTS person (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        age INT NOT NULL
+    )
+    """
+)
+```
+
+### Inserting Data
+
+Instantiate object classes as you normally do:
+
+```python
+people = [
+    Person(name="Alice", age=30),
+    Person(name="Bob", age=40),
+    Person(name="Charlie", age=50),
+]
+await conn.insert(people)
+
+print(people[0].id) # 1
+print(people[1].id) # 2
+```
+
+Because we're using an auto-incrementing primary key, the `id` field will be populated after the insert.
+Iceaxe will automatically update the object in place with the newly assigned value.
+
+### Updating data
+
+Now that we have these lovely people, let's modify them.
+
+```python
+person = people[0]
+person.name = "Blice"
+```
+
+Right now, we have a Python object that's out of state with the database. But that's often okay. We can inspect it
+and further write logic - it's fully decoupled from the database.
+
+```python
+def ensure_b_letter(person: Person):
+    if person.name[0].lower() != "b":
+        raise ValueError("Name must start with 'B'")
+
+ensure_b_letter(person)
+```
+
+To sync the values back to the database, we can call `update`:
+
+```python
+await conn.update([person])
+```
+
+If we were to query the database directly, we see that the name has been updated:
+
+```
+id | name  | age
+----+-------+-----
+  1 | Blice |  31
+  2 | Bob   |  40
+  3 | Charlie | 50
+```
+
+But no other fields have been touched. This lets a potentially concurrent process
+modify `Alice`'s record - say, updating the age to 31. By the time we update the data, we'll
+change the name but nothing else. Under the hood we do this by tracking the fields that
+have been modified in-memory and creating a targeted UPDATE to modify only those values.
+
+### Selecting data
+
+To select data, we can use a `QueryBuilder`. For a shortcut to `select` query functions,
+you can also just import select directly. This method takes the desired value parameters
+and returns a list of the desired objects.
+
+```python
+from iceaxe import select
+
+query = select(Person).where(Person.name == "Blice", Person.age > 25)
+results = await conn.exec(query)
+```
+
+If we inspect the typing of `results`, we see that it's a `list[Person]` objects. This matches
+the typehint of the `select` function. You can also target columns directly:
+
+```python
+query = select((Person.id, Person.name)).where(Person.age > 25)
+results = await conn.exec(query)
+```
+
+This will return a list of tuples, where each tuple is the id and name of the person: `list[tuple[int, str]]`.
+
+We support most of the common SQL operations. Just like the results, these are typehinted
+to their proper types as well. Static typecheckers and your IDE will throw an error if you try to compare
+a string column to an integer, for instance. A more complex example of a query:
+
+```python
+query = select((
+    Person.id,
+    FavoriteColor,
+)).join(
+    FavoriteColor,
+    Person.id == FavoriteColor.person_id,
+).where(
+    Person.age > 25,
+    Person.name == "Blice",
+).order_by(
+    Person.age.desc(),
+).limit(10)
+results = await conn.exec(query)
+```
+
+As expected this will deliver results - and typehint - as a `list[tuple[int, FavoriteColor]]`
