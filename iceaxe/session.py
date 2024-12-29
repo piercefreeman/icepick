@@ -416,32 +416,35 @@ class DBConnection:
                     )
                     query += f" RETURNING {returning_string}"
 
-                # Execute for each object
-                for obj in model_objects:
-                    obj_values = obj.model_dump()
-                    values = [
-                        info.to_db_value(obj_values[field])
-                        for field, info in fields.items()
-                    ]
-
+                # Execute in batches
+                for batch_objects, values_list in self._batch_objects_and_values(
+                    model_objects, list(fields.keys()), fields
+                ):
                     if returning_fields_cols:
-                        result = await self.conn.fetchrow(query, *values)
-                        if result:
-                            # Process returned values, deserializing JSON if needed
-                            processed_values = []
-                            for field in returning_fields_cols:
-                                value = result[field.key]
-                                if (
-                                    value is not None
-                                    and field.root_model.model_fields[field.key].is_json
-                                ):
-                                    value = json_loads(value)
-                                processed_values.append(value)
-                            results.append(tuple(processed_values))
+                        # For returning queries, we need to use fetchmany to get all results
+                        rows = await self.conn.fetchmany(query, values_list)
+                        for row in rows:
+                            if row:
+                                # Process returned values, deserializing JSON if needed
+                                processed_values = []
+                                for field in returning_fields_cols:
+                                    value = row[field.key]
+                                    if (
+                                        value is not None
+                                        and field.root_model.model_fields[
+                                            field.key
+                                        ].is_json
+                                    ):
+                                        value = json_loads(value)
+                                    processed_values.append(value)
+                                results.append(tuple(processed_values))
                     else:
-                        await self.conn.execute(query, *values)
+                        # For non-returning queries, we can use executemany
+                        await self.conn.executemany(query, values_list)
 
-                    obj.clear_modified_attributes()
+                    # Clear modified state for successfully upserted objects
+                    for obj in batch_objects:
+                        obj.clear_modified_attributes()
 
         self.modification_tracker.clear_status(objects)
 
