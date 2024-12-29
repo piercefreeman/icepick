@@ -1275,3 +1275,111 @@ async def test_batch_update_exceeds_parameters():
     assert "SET" in first_call.args[0]
     assert "WHERE" in first_call.args[0]
     assert '"id"' in first_call.args[0]
+
+
+@pytest.mark.asyncio
+async def test_batch_upsert_exceeds_parameters():
+    """
+    Test that upsert() correctly batches operations when we exceed Postgres parameter limits.
+    We'll create enough objects with enough fields that a single query would exceed PG_MAX_PARAMETERS.
+    """
+    assert assert_expected_user_fields(UserDemo)
+
+    # Calculate how many objects we need to exceed the parameter limit
+    # Each object has 2 fields (name, email) in UserDemo
+    # So each object uses 2 parameters
+    objects_needed = (PG_MAX_PARAMETERS // 2) + 1
+    users = [
+        UserDemo(name=f"User {i}", email=f"user{i}@example.com")
+        for i in range(objects_needed)
+    ]
+
+    # Mock the connection with dynamic results based on input
+    mock_conn = AsyncMock()
+    mock_conn.fetchmany = AsyncMock(
+        side_effect=lambda query, values_list: [
+            {"id": i, "name": f"User {i}", "email": f"user{i}@example.com"}
+            for i in range(len(values_list))
+        ]
+    )
+    mock_conn.executemany = AsyncMock()
+    mock_conn.transaction = mock_transaction
+
+    db = DBConnection(mock_conn)
+
+    # Upsert the objects with all possible kwargs
+    result = await db.upsert(
+        users,
+        conflict_fields=(UserDemo.email,),
+        update_fields=(UserDemo.name,),
+        returning_fields=(UserDemo.id, UserDemo.name, UserDemo.email),
+    )
+
+    # We should have made at least 2 calls to fetchmany since we exceeded the parameter limit
+    assert len(mock_conn.fetchmany.mock_calls) >= 2
+
+    # Verify the structure of the first call
+    first_call = mock_conn.fetchmany.mock_calls[0]
+    assert "INSERT INTO" in first_call.args[0]
+    assert "ON CONFLICT" in first_call.args[0]
+    assert "DO UPDATE SET" in first_call.args[0]
+    assert "RETURNING" in first_call.args[0]
+
+    # Verify we got back the expected number of results
+    assert result is not None
+    assert len(result) == objects_needed
+    assert all(len(r) == 3 for r in result)  # Each result should have id, name, email
+
+
+@pytest.mark.asyncio
+async def test_batch_upsert_multiple_with_real_db(db_connection: DBConnection):
+    """
+    Integration test for upserting multiple objects at once with a real database connection.
+    Tests both insert and update scenarios in the same batch.
+    """
+    await db_connection.conn.execute(
+        """
+        ALTER TABLE userdemo
+        ADD CONSTRAINT email_unique UNIQUE (email)
+        """
+    )
+
+    # Create initial set of users
+    initial_users = [
+        UserDemo(name="User 1", email="user1@example.com"),
+        UserDemo(name="User 2", email="user2@example.com"),
+    ]
+    await db_connection.insert(initial_users)
+
+    # Create a mix of new and existing users for upsert
+    users_to_upsert = [
+        # These should update
+        UserDemo(name="Updated User 1", email="user1@example.com"),
+        UserDemo(name="Updated User 2", email="user2@example.com"),
+        # These should insert
+        UserDemo(name="User 3", email="user3@example.com"),
+        UserDemo(name="User 4", email="user4@example.com"),
+    ]
+
+    result = await db_connection.upsert(
+        users_to_upsert,
+        conflict_fields=(UserDemo.email,),
+        update_fields=(UserDemo.name,),
+        returning_fields=(UserDemo.name, UserDemo.email),
+    )
+
+    # Verify we got all results back
+    assert result is not None
+    assert len(result) == 4
+
+    # Verify the database state
+    db_result = await db_connection.conn.fetch("SELECT * FROM userdemo ORDER BY email")
+    assert len(db_result) == 4
+
+    # Check that updates worked
+    assert db_result[0]["name"] == "Updated User 1"
+    assert db_result[1]["name"] == "Updated User 2"
+
+    # Check that inserts worked
+    assert db_result[2]["name"] == "User 3"
+    assert db_result[3]["name"] == "User 4"
