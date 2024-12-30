@@ -1,0 +1,79 @@
+# Queries
+
+Queries allow you to retrieve data from your database. Every query you build with ORM objects
+is a subclass of `QueryBuilder` at its base. This class provides a number of methods to help you
+construct your query and pass the correct types for downstream processing.
+
+## Shortcuts
+
+We offer convenience functions for the most common SQL operations. This avoids
+the need to instantiate a `QueryBuilder` directly every time you want a new SQL
+query and typically results in cleaner code.
+
+::: iceaxe.queries.select
+
+---
+
+::: iceaxe.queries.update
+
+---
+
+::: iceaxe.queries.delete
+
+---
+
+## Raw Queries
+
+::: iceaxe.queries.QueryBuilder
+
+---
+
+::: iceaxe.functions.FunctionMetadata
+
+---
+
+::: iceaxe.comparison.ComparisonBase
+
+---
+
+## Functions
+
+::: iceaxe.functions.func
+
+---
+
+::: iceaxe.functions.FunctionBuilder
+
+---
+
+## Conditions
+
+If you want to add conditions to your query, you can use the `where` method. If you pass multiple
+conditions to this, they'll be chained together as an `AND` filter. To
+combine OR and AND predicates together, you can use `and_` and `or_`.
+
+::: iceaxe.queries.and_
+
+---
+
+::: iceaxe.queries.or_
+
+---
+
+## Enums
+
+::: iceaxe.queries.JoinType
+
+---
+
+::: iceaxe.queries.OrderDirection
+
+---
+
+## Raw Queries
+
+::: iceaxe.queries_str.sql
+
+---
+
+::: iceaxe.queries_str.SQLGenerator

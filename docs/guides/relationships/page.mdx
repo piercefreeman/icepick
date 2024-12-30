@@ -1,0 +1,216 @@
+# Relationships
+
+Your data naturally has connections to one another. Students have
+teachers, offices have employees, etc. Relationships are what
+give a _relational_ database like Postgres its name.
+
+Iceaxe has support for relationships via foreign keys. Let's take
+the case of wanting to assign each Employee to an Office of record. We
+define two separate tables for each objects, and specify that the object_id
+key of Employees should link back to the office. This is a one-to-many relationship
+since one office can have many employees.
+
+```python
+from iceaxe import TableBase, Field
+
+class Office(TableBase):
+    id: int = Field(primary_key=True)
+    name: str
+
+class Employee(TableBase):
+    id: int = Field(primary_key=True)
+    name: str
+    office_id: int = Field(foreign_key="office.id")
+```
+
+When new data is inserted into the database, Postgres will validate that
+the office_id that you've provided does in fact exist in the database. If not,
+our underlying connection will raise an error.
+
+```python
+office = Office(name="HQ")
+await conn.insert([office])
+
+valid_employee = Employee(name="Alice", office_id=office.id)
+invalid_employee = Employee(name="Bob", office_id=11111111)
+
+await conn.insert([valid_employee]) # Works
+await conn.insert([invalid_employee]) # Raises an error
+```
+
+How do we retrieve the office that an employee is associated with? We can
+use the `join` method to specify that we want to pull in the office data. This
+executes one efficient SQL query to get both objects. The resulting objects
+in Python are typehinted as you expect.
+
+```python
+from iceaxe import select
+
+query = select((Employee, Office)).join(
+    Office,
+    Employee.office_id == Office.id,
+).where(
+    Employee.name == "Alice",
+)
+results = await conn.exec(query)
+
+alice, office = results[0]
+print(f"{alice.name} (office.name)") # Alice (HQ)
+```
+
+## Many-to-many relationships
+
+Many-to-many relationships are a bit more complex. Let's say we have a
+many-to-many relationship between `Person` and `FavoriteColor`. A person
+can have many favorite colors, and a color can be a favorite of many people.
+
+This calls for a third table, `PersonFavoriteColor`, that links the two
+tables together. It acts as the primary lookup table for the relationship. In theory
+this relationship table can have additional fields - there's nothing unique
+to it being a many-to-many relationship - but in this case we'll keep it simple.
+
+```python
+from iceaxe import TableBase, Field
+
+class Person(TableBase):
+    id: int = Field(primary_key=True)
+    name: str
+
+class FavoriteColor(TableBase):
+    id: int = Field(primary_key=True)
+    color: str
+
+class PersonFavoriteColor(TableBase):
+    person_id: int = Field(foreign_key="person.id", primary_key=True)
+    color_id: int = Field(foreign_key="favorite_color.id", primary_key=True)
+```
+
+To query the favorite colors of a person, we can use the `join` method like
+before. Except instead of a direct equality comparison between the two
+tables we'll want to use the bridge table as the central point of the join.
+
+```python
+query = select((Person, FavoriteColor)).join(
+    PersonFavoriteColor,
+    Person.id == PersonFavoriteColor.person_id,
+).join(
+    FavoriteColor,
+    PersonFavoriteColor.color_id == FavoriteColor.id,
+).where(
+    Person.name == "Alice",
+)
+```
+
+This is a more complicated query than before, so let's consider the actual
+SQL that's being run:
+
+```sql
+SELECT person.*, favorite_color.*
+FROM person
+JOIN person_favorite_color ON person.id = person_favorite_color.person_id
+JOIN favorite_color ON person_favorite_color.color_id = favorite_color.id
+WHERE person.name = 'Alice'
+```
+
+A plain `JOIN` like this is the same as specifying an `INNER JOIN`. Since SQL
+fetches results in a row based format, we'll receive |Person|*|Color| rows here. In
+other words, if Alice has 3 favorite colors, we'll get 3 rows back alongside
+3 copies of Alice's data. When cast into Python objects, we'll get get the same:
+
+```python
+[
+    (Person(name="Alice"), FavoriteColor(color="Red")),
+    (Person(name="Alice"), FavoriteColor(color="Green")),
+    (Person(name="Alice"), FavoriteColor(color="Blue")),
+]
+```
+
+Sometimes, that's okay if you're fetching a small amount of data. You can always
+just group by the person to get a more compact result:
+
+```python
+from itertools import groupby
+
+results = await conn.exec(query)
+grouped = groupby(sorted(results, key=lamda x: x.id), lambda x: x.id)
+for person_id, person_colors in grouped:
+    person, colors = person_colors[0]
+    print(f"{person.name} likes {', '.join(color.color for person, color in person_colors)}")
+```
+
+Alternatively, you can separate out your queries: one query to fetch the people
+and one query to fetch the colors for all matching IDs:
+
+```python
+query = select(Person).where(Person.name == "Alice")
+people = await conn.exec(query)
+
+query = select((PersonFavoriteColor.person_id, FavoriteColor)).join(
+    PersonFavoriteColor,
+    FavoriteColor.id == PersonFavoriteColor.color_id,
+).where(
+    PersonFavoriteColor.person_id.in_([person.id for person in people]),
+)
+```
+
+## Comparison with other ORMs
+
+In some other ORMs that you might have used, there is an explicit
+notion of defining and accessing child models right from the parent object. The
+syntax might be something like:
+
+```python
+class Parent(Base):
+    children = relationship("Child")
+
+class Child(Base):
+    parent_id = Column(Integer, ForeignKey("parent.id"))
+    parent = relationship("Parent")
+```
+
+When you access `parent.children`, these ORMs will automatically issue
+a new request to the database to pull the dependent children. Internally
+this usually translates to the following SQL:
+
+```python
+# SELECT * FROM parent WHERE id = ?
+parent_obj = db_session.get(Parent, parent_id)
+
+# SELECT * FROM child WHERE parent_id = ?
+for child in parent_obj.children:
+    print(child)
+```
+
+This works naturally in syncronous code but isn't as straightforward
+in async logic. When should the async ORM issue the request to fetch the
+children? Should it be done when the parent object is created? When the
+`children` attribute is accessed? If so, children would need to switch
+to an awaitable type. Will the transaction be held for the duration of
+both fetches? There are typically a host of options that govern each
+ORM's behavior.
+
+Plus, if you're dealing with multiple parent objects, it's common
+to unintentionally issue a large number of queries to the database
+when you iterate over the parent objects. This is known as the N+1
+query problem.
+
+Inline with Iceaxe's philosophy that SQL queries are better explicit
+than implicit, we don't support this implicit relationship syntax. Instead
+we support foreign keys and joins directly in the query. If you want to
+implement something similar at the class level, it's pretty easy to do so:
+
+```python
+from iceaxe import TableBase, Field, select
+
+class Parent(TableBase):
+    id: int = Field(primary_key=True)
+    name: str
+
+    async def children(self, conn: DBConnection):
+        query = select(Child).where(Child.parent_id == self.id)
+        return await conn.exec(query)
+```
+
+But buyer beware: this will issue a new query to the database every time. Think about
+if this is really the right approach for your use case. Normally it's better
+to default to explicit joins in your queries.

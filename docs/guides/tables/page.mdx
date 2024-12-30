@@ -1,0 +1,109 @@
+# Table Definition
+
+We define tables in Iceaxe using the `TableBase` class. You define the column
+type by attaching a Python typehint to the class attributes. You can further configure
+these columns by customizing a `Field`.
+
+```python
+from iceaxe import TableBase, Field, PostgresDateTime, DBConnection
+
+class Employee(TableBase):
+    id: int | None = Field(primary_key=True, default=None)
+    name: str
+    age: int
+    payload: datetime = Field(postgres_config=PostgresDateTime(timezone=True))
+```
+
+Right now this table just exists in Python. To create it in the database, we need to
+issue the instructions to create the table. You can manually write this SQL or rely
+on our harness to generate it for you.
+
+```python
+from iceaxe.schemas.cli import create_all
+
+conn = DBConnection(
+    await asyncpg.connect(
+        host="localhost",
+        port=5432,
+        user="db_user",
+        password="yoursecretpassword",
+        database="your_db",
+    )
+)
+await create_all(conn)
+```
+
+By default, `create_all` will create all tables that are subclasses of `TableBase` that
+are currently imported into your Python environment. Make sure all the models that you
+use are imported into thet namespace before you call `create_all`. One convenient convention
+to follow is to define your schemas in a `models` folder and then re-export them from
+the `models/__init__.py` file.
+
+```
+myproject/
+├── __init__.py
+└── models/
+    ├── __init__.py
+    ├── employee.py
+    └── office.py
+```
+
+```python
+# models/__init__.py
+from .employee import Employee as Employee
+from .office import Office as Office
+```
+
+This allows you to import the one models module and have all of your models available
+with that one import:
+
+```python
+from myproject import models
+
+print(models.Employee)
+print(models.Office)
+
+await create_all(conn)
+```
+
+You can also limit the models that are created by passing a list of explicit models to
+the `models` argument:
+
+```python
+await create_all(conn, models=[DemoCustomModel])
+```
+
+## Fields
+
+This TableBase is a subclass of Pydantic's `BaseModel`, which means that
+you can use Pydantic's validation and serialization features on your
+tables in addition to our database specific flags. You can read more
+about the Pydantic features in the [Pydantic documentation](https://docs.pydantic.dev/latest/concepts/fields/). We
+define our full database options in the Iceaxe [API docs](/iceaxe/api/fields).
+
+To use one example, let's say that you want to validate that the age is
+at least 16. Add a new field validator for that particular field:
+
+```python
+from iceaxe import TableBase, Field
+from pydantic import field_validator
+
+class Employee(TableBase):
+    id: int | None = Field(primary_key=True, default=None)
+    name: str
+    age: int
+
+    @field_validator("age")
+    def validate_age(cls, v):
+        if v < 16:
+            raise ValueError("You must be at least 16 to receive a tax return")
+        return v
+
+# Successful validation
+person_1 = Person(name="John Doe", age=16)
+print(person_1)
+
+# Raises a pydantic_core._pydantic_core.ValidationError
+person_2 = Person(name="John Doe", age=15)
+print(person_2)
+```

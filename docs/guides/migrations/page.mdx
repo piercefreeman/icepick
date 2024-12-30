@@ -1,0 +1,178 @@
+# Migrations
+
+Whether you're starting a new project or already have a table schema
+in place, you're eventually going to modify your TableBase schema and
+need that reflected in your database. Instead of writing this logic by
+handle, we bundle a series of utilities that handle this manipulation
+for you in a safe and predictable way.
+
+You'll typically want to call your migration commands from your command line. So
+we can go ahead and import your CLI library of choice and write some wrapper
+code on top of our utility functions. We start by defining our project name (the
+same one that's declared in your pyproject.toml file) alongside a helper function
+to get a connection to your database.
+
+For a real project, you'll want to grab these values from environment variables.
+
+```python
+# cli.py
+import asyncio
+import asyncpg
+from click import command, option
+
+from iceaxe import DBConnection
+from iceaxe.migrations.cli import handle_generate, handle_apply, handle_rollback
+
+from myproject import models # noqa: F401
+
+PROJECT = "myproject"
+
+async def get_connection():
+    return DBConnection(
+        await asyncpg.connect(
+            host="localhost",
+            port=5432,
+            user="db_user",
+            password="yoursecretpassword",
+            database="your_db",
+        )
+    )
+```
+
+Now we can write the CLI functions that will actually be called. Iceaxe takes
+care of the core logic, so our job here is just to expose it to the command line.
+
+```python
+@command()
+@option("--message", help="A message to attach to the migration")
+def generate(message: str | None):
+    async def _inner():
+        await handle_generate(PROJECT, await get_connection(), message=message)
+    asyncio.run(_inner())
+
+@command()
+def apply():
+    async def _inner():
+        await handle_apply(PROJECT, await get_connection())
+    asyncio.run(_inner())
+
+@command()
+def rollback():
+    async def _inner():
+        await handle_rollback(PROJECT, await get_connection())
+    asyncio.run(_inner())
+```
+
+Great, now just modify your pyproject.toml file to make these callable. If you're
+using Poetry, you can add the following to your `tool.poetry.scripts` section:
+
+```toml
+[tool.poetry.scripts]
+migrate-generate = "myproject.cli:generate"
+migrate-apply = "myproject.cli:apply"
+migrate-rollback = "myproject.cli:rollback"
+```
+
+## Generating migrations
+
+Let's say we currently have a simple Employee table that's defined in our
+database. It has an auto-incrementing ID and a name.
+
+| Column Name | Data Type | Constraints |
+|-------------|-----------|-------------|
+| id          | int       | PRIMARY KEY |
+| name        | varchar   |             |
+
+We want to add an age to each user record, so we modify our TableBase schema
+to include this new field.
+
+```python
+from iceaxe import TableBase, Field
+
+class Employee(TableBase):
+    id: int | None = Field(primary_key=True, default=None)
+    name: str
+    age: int  # new field
+```
+
+When we call our `migrate-generate` from the CLI, Iceaxe will do the following:
+
+- Use the database connection to introspect the current schema
+- Compare the current schema to the new schema, creating a migration pathway
+  to convert one to the other
+- Generate a migration file that will add the `age` column to the `employee` table
+
+```bash
+$ poetry run migrate-generate
+
+Generating migration to current schema
+New migration added: rev_1729278706.py
+```
+
+It places the following file in your `myprojects/migrations` directory:
+
+```python
+from iceaxe.migrations.migrator import Migrator
+from iceaxe.migrations.migration import MigrationRevisionBase
+from iceaxe.schemas.actions import ColumnType
+
+class MigrationRevision(MigrationRevisionBase):
+    """
+    Migration auto-generated on 2024-10-18T12:11:46.941324.
+
+    Context: None
+
+    """
+    up_revision: str = "1729278608"
+    down_revision: str | None = None
+
+    async def up(self, migrator: Migrator):
+        await migrator.actor.add_column(table_name="employee", column_name="age", explicit_data_type=ColumnType.INTEGER, explicit_data_is_list=False, custom_data_type=None)
+        await migrator.actor.add_not_null(table_name="employee", column_name="age")
+
+    async def down(self, migrator: Migrator):
+        await migrator.actor.drop_column(table_name="employee", column_name="age")
+```
+
+This file contains the logic to transform your current schema to the new schema (`up`) as well
+as to undo those changes and revert back to the original schema (`down`). This down logic
+lets you rollback changes that potentially break your application.
+
+You can modify these migration functions to include additional logic, such as defaulting
+default values for the new column or migrating data from one column to another. For this
+`up` function we'd probably want to insert our known ages for our employees.
+
+```python
+async def up(self, migrator: Migrator):
+    await migrator.actor.add_column(table_name="employee", column_name="age", explicit_data_type=ColumnType.INTEGER, explicit_data_is_list=False, custom_data_type=None)
+
+    # Insert known ages for employees
+    await migrator.db_connection.exec(
+        ...
+    )
+
+    await migrator.actor.add_not_null(table_name="employee", column_name="age")
+```
+
+## Applying migrations
+
+When you're happy with your migration, you can apply it to your database by running
+the `migrate-apply` command. This migration will apply any unapplied migrations in
+your migrations folder up to the last revision.
+
+```bash
+$ poetry run migrate-apply
+
+🚀 Applied 1729278608 in 0.02s
+```
+
+## Undoing migrations
+
+If you need to rollback a migration, you can run the `migrate-rollback` command. This
+will undo 1 migration at a time, starting with the most recent migration.
+
+```bash
+$ poetry run migrate-rollback
+
+🪃 Rolled back migration to None in 0.01s
+```
