@@ -182,24 +182,28 @@ class DatabaseSerializer:
 
                 # Map PostgreSQL action codes to action strings
                 action_map = {
-                    'a': 'NO ACTION',
-                    'r': 'RESTRICT',
-                    'c': 'CASCADE',
-                    'n': 'SET NULL',
-                    'd': 'SET DEFAULT',
+                    "a": "NO ACTION",
+                    "r": "RESTRICT",
+                    "c": "CASCADE",
+                    "n": "SET NULL",
+                    "d": "SET DEFAULT",
                 }
 
                 on_update = action_map.get(
-                    row["confupdtype"].decode() if isinstance(row["confupdtype"], bytes) else row["confupdtype"],
-                    'NO ACTION'
+                    row["confupdtype"].decode()
+                    if isinstance(row["confupdtype"], bytes)
+                    else row["confupdtype"],
+                    "NO ACTION",
                 )
                 on_delete = action_map.get(
-                    row["confdeltype"].decode() if isinstance(row["confdeltype"], bytes) else row["confdeltype"],
-                    'NO ACTION'
+                    row["confdeltype"].decode()
+                    if isinstance(row["confdeltype"], bytes)
+                    else row["confdeltype"],
+                    "NO ACTION",
                 )
 
                 fk_constraint = ForeignKeyConstraint(
-                    target_table=target_table, 
+                    target_table=target_table,
                     target_columns=frozenset(target_columns),
                     on_delete=on_delete,
                     on_update=on_update,

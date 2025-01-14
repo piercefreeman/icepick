@@ -11,7 +11,7 @@ from pydantic.fields import FieldInfo
 from iceaxe import Field, TableBase
 from iceaxe.base import IndexConstraint, UniqueConstraint
 from iceaxe.field import DBFieldInfo
-from iceaxe.postgres import PostgresDateTime, PostgresTime, PostgresForeignKey
+from iceaxe.postgres import PostgresDateTime, PostgresForeignKey, PostgresTime
 from iceaxe.schemas.actions import (
     ColumnType,
     ConstraintType,

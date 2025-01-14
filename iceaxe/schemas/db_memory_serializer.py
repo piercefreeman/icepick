@@ -19,7 +19,11 @@ from iceaxe.generics import (
     remove_null_type,
 )
 from iceaxe.migrations.action_sorter import ActionTopologicalSorter
-from iceaxe.postgres import PostgresDateTime, PostgresTime, PostgresForeignKey, ForeignKeyModifications
+from iceaxe.postgres import (
+    PostgresDateTime,
+    PostgresForeignKey,
+    PostgresTime,
+)
 from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,

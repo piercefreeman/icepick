@@ -58,7 +58,11 @@ class PostgresTime(PostgresFieldBase):
 
     """
 
-ForeignKeyModifications = Literal["RESTRICT", "NO ACTION", "CASCADE", "SET DEFAULT", "SET NULL"]
+
+ForeignKeyModifications = Literal[
+    "RESTRICT", "NO ACTION", "CASCADE", "SET DEFAULT", "SET NULL"
+]
+
 
 class PostgresForeignKey(PostgresFieldBase):
     """

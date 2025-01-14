@@ -6,10 +6,10 @@ from typing import Any, Callable, Literal, overload
 from pydantic import BaseModel
 
 from iceaxe.logging import LOGGER
+from iceaxe.postgres import ForeignKeyModifications
 from iceaxe.queries_str import QueryIdentifier
 from iceaxe.session import DBConnection
 from iceaxe.sql_types import ColumnType, ConstraintType
-from iceaxe.postgres import ForeignKeyModifications
 
 
 class ForeignKeyConstraint(BaseModel):

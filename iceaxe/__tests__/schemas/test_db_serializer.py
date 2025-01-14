@@ -340,8 +340,9 @@ async def test_db_serializer_foreign_key_actions(
 
     # Find the foreign key constraint
     fk_constraint = next(
-        obj for obj, _ in db_objects 
-        if isinstance(obj, DBConstraint) 
+        obj
+        for obj, _ in db_objects
+        if isinstance(obj, DBConstraint)
         and obj.constraint_type == ConstraintType.FOREIGN_KEY
     )
     assert fk_constraint.foreign_key_constraint is not None
