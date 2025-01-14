@@ -121,7 +121,15 @@ class DatabaseSerializer:
 
     async def get_constraints(self, session: DBConnection, table_name: str):
         query = """
-            SELECT conname, contype, conrelid, confrelid, conkey, confkey
+            SELECT 
+                conname, 
+                contype, 
+                conrelid, 
+                confrelid, 
+                conkey, 
+                confkey,
+                confupdtype,
+                confdeltype
             FROM pg_constraint
             INNER JOIN pg_class ON pg_constraint.conrelid = pg_class.oid
             WHERE pg_class.relname = $1
@@ -172,8 +180,29 @@ class DatabaseSerializer:
                 )
                 target_columns = {row["column_name"] for row in target_columns_result}
 
+                # Map PostgreSQL action codes to action strings
+                action_map = {
+                    'a': 'NO ACTION',
+                    'r': 'RESTRICT',
+                    'c': 'CASCADE',
+                    'n': 'SET NULL',
+                    'd': 'SET DEFAULT',
+                }
+
+                on_update = action_map.get(
+                    row["confupdtype"].decode() if isinstance(row["confupdtype"], bytes) else row["confupdtype"],
+                    'NO ACTION'
+                )
+                on_delete = action_map.get(
+                    row["confdeltype"].decode() if isinstance(row["confdeltype"], bytes) else row["confdeltype"],
+                    'NO ACTION'
+                )
+
                 fk_constraint = ForeignKeyConstraint(
-                    target_table=target_table, target_columns=frozenset(target_columns)
+                    target_table=target_table, 
+                    target_columns=frozenset(target_columns),
+                    on_delete=on_delete,
+                    on_update=on_update,
                 )
             elif ctype == ConstraintType.CHECK:
                 # Retrieve the check constraint expression

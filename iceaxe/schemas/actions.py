@@ -9,11 +9,14 @@ from iceaxe.logging import LOGGER
 from iceaxe.queries_str import QueryIdentifier
 from iceaxe.session import DBConnection
 from iceaxe.sql_types import ColumnType, ConstraintType
+from iceaxe.postgres import ForeignKeyModifications
 
 
 class ForeignKeyConstraint(BaseModel):
     target_table: str
     target_columns: frozenset[str]
+    on_delete: ForeignKeyModifications = "NO ACTION"
+    on_update: ForeignKeyModifications = "NO ACTION"
 
     model_config = {
         "frozen": True,
@@ -398,6 +401,10 @@ class DatabaseActions:
                 str(QueryIdentifier(col)) for col in constraint_args.target_columns
             )
             sql += f"FOREIGN KEY ({columns_formatted}) REFERENCES {target_table} ({ref_cols_formatted})"
+            if constraint_args.on_delete != "NO ACTION":
+                sql += f" ON DELETE {constraint_args.on_delete}"
+            if constraint_args.on_update != "NO ACTION":
+                sql += f" ON UPDATE {constraint_args.on_update}"
         elif constraint == ConstraintType.UNIQUE:
             sql += f"UNIQUE ({columns_formatted})"
         elif constraint == ConstraintType.CHECK:
