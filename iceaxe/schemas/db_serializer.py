@@ -1,6 +1,7 @@
 import re
 
 from iceaxe.io import lru_cache_async
+from iceaxe.postgres import ForeignKeyModifications
 from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,
@@ -202,11 +203,15 @@ class DatabaseSerializer:
                     "NO ACTION",
                 )
 
+                # Cast the strings to ForeignKeyModifications type
+                on_update_mod: ForeignKeyModifications = on_update  # type: ignore
+                on_delete_mod: ForeignKeyModifications = on_delete  # type: ignore
+
                 fk_constraint = ForeignKeyConstraint(
                     target_table=target_table,
                     target_columns=frozenset(target_columns),
-                    on_delete=on_delete,
-                    on_update=on_update,
+                    on_delete=on_delete_mod,
+                    on_update=on_update_mod,
                 )
             elif ctype == ConstraintType.CHECK:
                 # Retrieve the check constraint expression
