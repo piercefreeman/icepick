@@ -1,4 +1,5 @@
 import re
+from typing import cast
 
 from iceaxe.io import lru_cache_async
 from iceaxe.postgres import ForeignKeyModifications
@@ -33,6 +34,23 @@ class DatabaseSerializer:
         # won't be mirrored by our DBMemorySerializer. We exclude them from this serialization lest there
         # be a detected conflict and we try to remove the migration metadata.
         self.ignore_tables = ["migration_info"]
+
+    @staticmethod
+    def _unwrap_db_str(value: str | bytes | bytearray | memoryview) -> str:
+        """
+        Helper method to handle database values that might be bytes-like or strings.
+        PostgreSQL sometimes returns bytes-like objects for certain fields, this normalizes the output.
+
+        :param value: The value from the database, either string or bytes-like object
+        :return: The string representation of the value
+        """
+        if isinstance(value, str):
+            return value
+
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return bytes(value).decode()
+
+        raise ValueError(f"Unexpected type for database value: {type(value)}")
 
     async def get_objects(self, connection: DBConnection):
         tables = []
@@ -137,11 +155,7 @@ class DatabaseSerializer:
         """
         result = await session.conn.fetch(query, table_name)
         for row in result:
-            contype = (
-                row["contype"].decode()
-                if isinstance(row["contype"], bytes)
-                else row["contype"]
-            )
+            contype = self._unwrap_db_str(row["contype"])
             # Determine type
             if contype == "p":
                 ctype = ConstraintType.PRIMARY_KEY
@@ -191,21 +205,16 @@ class DatabaseSerializer:
                 }
 
                 on_update = action_map.get(
-                    row["confupdtype"].decode()
-                    if isinstance(row["confupdtype"], bytes)
-                    else row["confupdtype"],
+                    self._unwrap_db_str(row["confupdtype"]),
                     "NO ACTION",
                 )
                 on_delete = action_map.get(
-                    row["confdeltype"].decode()
-                    if isinstance(row["confdeltype"], bytes)
-                    else row["confdeltype"],
+                    self._unwrap_db_str(row["confdeltype"]),
                     "NO ACTION",
                 )
 
-                # Cast the strings to ForeignKeyModifications type
-                on_update_mod: ForeignKeyModifications = on_update  # type: ignore
-                on_delete_mod: ForeignKeyModifications = on_delete  # type: ignore
+                on_update_mod = cast(ForeignKeyModifications, on_update)
+                on_delete_mod = cast(ForeignKeyModifications, on_delete)
 
                 fk_constraint = ForeignKeyConstraint(
                     target_table=target_table,
