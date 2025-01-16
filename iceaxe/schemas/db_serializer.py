@@ -1,6 +1,8 @@
 import re
+from typing import cast
 
 from iceaxe.io import lru_cache_async
+from iceaxe.postgres import ForeignKeyModifications
 from iceaxe.schemas.actions import (
     CheckConstraint,
     ColumnType,
@@ -32,6 +34,23 @@ class DatabaseSerializer:
         # won't be mirrored by our DBMemorySerializer. We exclude them from this serialization lest there
         # be a detected conflict and we try to remove the migration metadata.
         self.ignore_tables = ["migration_info"]
+
+    @staticmethod
+    def _unwrap_db_str(value: str | bytes | bytearray | memoryview) -> str:
+        """
+        Helper method to handle database values that might be bytes-like or strings.
+        PostgreSQL sometimes returns bytes-like objects for certain fields, this normalizes the output.
+
+        :param value: The value from the database, either string or bytes-like object
+        :return: The string representation of the value
+        """
+        if isinstance(value, str):
+            return value
+
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return bytes(value).decode()
+
+        raise ValueError(f"Unexpected type for database value: {type(value)}")
 
     async def get_objects(self, connection: DBConnection):
         tables = []
@@ -121,18 +140,22 @@ class DatabaseSerializer:
 
     async def get_constraints(self, session: DBConnection, table_name: str):
         query = """
-            SELECT conname, contype, conrelid, confrelid, conkey, confkey
+            SELECT 
+                conname, 
+                contype, 
+                conrelid, 
+                confrelid, 
+                conkey, 
+                confkey,
+                confupdtype,
+                confdeltype
             FROM pg_constraint
             INNER JOIN pg_class ON pg_constraint.conrelid = pg_class.oid
             WHERE pg_class.relname = $1
         """
         result = await session.conn.fetch(query, table_name)
         for row in result:
-            contype = (
-                row["contype"].decode()
-                if isinstance(row["contype"], bytes)
-                else row["contype"]
-            )
+            contype = self._unwrap_db_str(row["contype"])
             # Determine type
             if contype == "p":
                 ctype = ConstraintType.PRIMARY_KEY
@@ -172,8 +195,32 @@ class DatabaseSerializer:
                 )
                 target_columns = {row["column_name"] for row in target_columns_result}
 
+                # Map PostgreSQL action codes to action strings
+                action_map = {
+                    "a": "NO ACTION",
+                    "r": "RESTRICT",
+                    "c": "CASCADE",
+                    "n": "SET NULL",
+                    "d": "SET DEFAULT",
+                }
+
+                on_update = action_map.get(
+                    self._unwrap_db_str(row["confupdtype"]),
+                    "NO ACTION",
+                )
+                on_delete = action_map.get(
+                    self._unwrap_db_str(row["confdeltype"]),
+                    "NO ACTION",
+                )
+
+                on_update_mod = cast(ForeignKeyModifications, on_update)
+                on_delete_mod = cast(ForeignKeyModifications, on_delete)
+
                 fk_constraint = ForeignKeyConstraint(
-                    target_table=target_table, target_columns=frozenset(target_columns)
+                    target_table=target_table,
+                    target_columns=frozenset(target_columns),
+                    on_delete=on_delete_mod,
+                    on_update=on_update_mod,
                 )
             elif ctype == ConstraintType.CHECK:
                 # Retrieve the check constraint expression
