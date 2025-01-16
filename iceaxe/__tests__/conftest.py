@@ -82,7 +82,9 @@ async def db_connection():
 @pytest_asyncio.fixture(autouse=True)
 async def clear_table(db_connection):
     # Clear all tables and reset sequences
-    await db_connection.conn.execute("TRUNCATE TABLE userdemo, article RESTART IDENTITY CASCADE")
+    await db_connection.conn.execute(
+        "TRUNCATE TABLE userdemo, article RESTART IDENTITY CASCADE"
+    )
 
 
 @pytest_asyncio.fixture

@@ -11,7 +11,6 @@ from iceaxe.comparison import (
     ComparisonBase,
     ComparisonType,
     FieldComparison,
-    FieldComparisonGroup,
 )
 from iceaxe.queries_str import QueryLiteral
 from iceaxe.sql_types import get_python_to_sql_mapping
@@ -124,17 +123,16 @@ class FunctionMetadata(ComparisonBase):
         ```
         """
         from iceaxe.functions import func
+
         metadata = func._column_to_metadata(query)
         # Create a new FunctionMetadata for the @@ operation
         match_metadata = FunctionMetadata(
             literal=QueryLiteral(f"{self.literal} @@ {metadata.literal}"),
-            original_field=self.original_field
+            original_field=self.original_field,
         )
         # Return a FieldComparison that will be accepted by where()
         return FieldComparison(
-            left=match_metadata,
-            comparison=ComparisonType.EQ,
-            right=True
+            left=match_metadata, comparison=ComparisonType.EQ, right=True
         )
 
     def concat(self, other: Any) -> Any:
@@ -152,6 +150,7 @@ class FunctionMetadata(ComparisonBase):
         ```
         """
         from iceaxe.functions import func
+
         metadata = func._column_to_metadata(other)
         self.literal = QueryLiteral(f"{self.literal} || {metadata.literal}")
         return self
@@ -660,7 +659,9 @@ class FunctionBuilder:
         ```
         """
         metadata = self._column_to_metadata(field)
-        metadata.literal = QueryLiteral(f"to_tsvector('{language}', {metadata.literal})")
+        metadata.literal = QueryLiteral(
+            f"to_tsvector('{language}', {metadata.literal})"
+        )
         return metadata
 
     def to_tsquery(self, language: str, query: str) -> FunctionMetadata:
@@ -682,13 +683,13 @@ class FunctionBuilder:
         )
         return metadata
 
-    def setweight(self, field: T, weight: str) -> T:
+    def setweight(self, field: Any, weight: str) -> FunctionMetadata:
         """
         Sets the weight of a tsvector.
 
         :param field: The tsvector to set weight for
         :param weight: The weight to set (A, B, C, or D)
-        :return: A function metadata object preserving the input type
+        :return: A function metadata object for the weighted tsvector
 
         ```python {{sticky: True}}
         # Set weight for a tsvector
@@ -697,9 +698,9 @@ class FunctionBuilder:
         """
         metadata = self._column_to_metadata(field)
         metadata.literal = QueryLiteral(f"setweight({metadata.literal}, '{weight}')")
-        return cast(T, metadata)
+        return metadata
 
-    def ts_rank(self, vector: T, query: T) -> FunctionMetadata:
+    def ts_rank(self, vector: Any, query: Any) -> FunctionMetadata:
         """
         Ranks search results.
 
@@ -718,12 +719,16 @@ class FunctionBuilder:
         vector_metadata = self._column_to_metadata(vector)
         query_metadata = self._column_to_metadata(query)
         metadata = FunctionMetadata(
-            literal=QueryLiteral(f"ts_rank({vector_metadata.literal}, {query_metadata.literal})"),
+            literal=QueryLiteral(
+                f"ts_rank({vector_metadata.literal}, {query_metadata.literal})"
+            ),
             original_field=vector_metadata.original_field,
         )
         return metadata
 
-    def ts_headline(self, language: str, field: T, query: T, options: str | None = None) -> str:
+    def ts_headline(
+        self, language: str, field: T, query: T, options: str | None = None
+    ) -> str:
         """
         Generates search result highlights.
 

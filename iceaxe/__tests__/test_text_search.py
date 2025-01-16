@@ -1,39 +1,35 @@
+from typing import List, Literal, Optional, TypeVar, cast
+
 import pytest
-from typing import Optional, Literal, TypeVar, Any, List, cast
 
 from iceaxe import Field, TableBase, func, select
 from iceaxe.postgres import PostgresFullText
-from iceaxe.functions import FunctionMetadata
-from iceaxe.session import DBConnection
 from iceaxe.queries import QueryBuilder
-from iceaxe.queries_str import QueryLiteral
-
+from iceaxe.session import DBConnection
 
 T = TypeVar("T")
 
 
 class Article(TableBase):
     """Test model for full-text search."""
+
     id: int = Field(primary_key=True)
-    title: str = Field(postgres_config=PostgresFullText(
-        language="english",
-        weight="A"
-    ))
-    content: str = Field(postgres_config=PostgresFullText(
-        language="english",
-        weight="B"
-    ))
-    summary: Optional[str] = Field(default=None, postgres_config=PostgresFullText(
-        language="english",
-        weight="C"
-    ))
+    title: str = Field(postgres_config=PostgresFullText(language="english", weight="A"))
+    content: str = Field(
+        postgres_config=PostgresFullText(language="english", weight="B")
+    )
+    summary: Optional[str] = Field(
+        default=None, postgres_config=PostgresFullText(language="english", weight="C")
+    )
 
     async def save(self, db_connection: DBConnection) -> None:
         """Save the article to the database."""
         await db_connection.insert([self])
 
 
-async def execute(query: QueryBuilder[T, Literal["SELECT"]], db_connection: DBConnection) -> List[T]:
+async def execute(
+    query: QueryBuilder[T, Literal["SELECT"]], db_connection: DBConnection
+) -> List[T]:
     """Execute a query and return the results."""
     return cast(List[T], await db_connection.exec(query))
 
@@ -43,8 +39,12 @@ async def test_basic_text_search(db_connection: DBConnection):
     """Test basic text search functionality using query builder."""
     # Create test data
     articles = [
-        Article(id=1, title="Python Programming", content="Learn Python programming basics"),
-        Article(id=2, title="Database Design", content="Python and database design patterns"),
+        Article(
+            id=1, title="Python Programming", content="Learn Python programming basics"
+        ),
+        Article(
+            id=2, title="Database Design", content="Python and database design patterns"
+        ),
         Article(id=3, title="Web Development", content="Building web apps with Python"),
     ]
     for article in articles:
@@ -53,14 +53,18 @@ async def test_basic_text_search(db_connection: DBConnection):
     # Search in title only
     title_vector = func.to_tsvector("english", Article.title)
     query = func.to_tsquery("english", "python")
-    
-    results = await execute(select(Article).where(title_vector.matches(query)), db_connection)
+
+    results = await execute(
+        select(Article).where(title_vector.matches(query)), db_connection
+    )
     assert len(results) == 1
     assert results[0].id == 1
 
     # Search in content only
     content_vector = func.to_tsvector("english", Article.content)
-    results = await execute(select(Article).where(content_vector.matches(query)), db_connection)
+    results = await execute(
+        select(Article).where(content_vector.matches(query)), db_connection
+    )
     assert len(results) == 3  # All articles mention Python in content
 
 
@@ -70,7 +74,9 @@ async def test_complex_text_search(db_connection: DBConnection):
     articles = [
         Article(id=1, title="Python Programming", content="Learn programming basics"),
         Article(id=2, title="Python Advanced", content="Advanced programming concepts"),
-        Article(id=3, title="JavaScript Basics", content="Learn programming with JavaScript"),
+        Article(
+            id=3, title="JavaScript Basics", content="Learn programming with JavaScript"
+        ),
     ]
     for article in articles:
         await article.save(db_connection)
@@ -102,13 +108,13 @@ async def test_combined_field_search(db_connection: DBConnection):
             id=1,
             title="Python Guide",
             content="Learn programming basics",
-            summary="A beginner's guide to Python"
+            summary="A beginner's guide to Python",
         ),
         Article(
             id=2,
             title="Programming Tips",
             content="Python best practices",
-            summary="Advanced Python concepts"
+            summary="Advanced Python concepts",
         ),
     ]
     for article in articles:
@@ -121,7 +127,7 @@ async def test_combined_field_search(db_connection: DBConnection):
         .concat(func.to_tsvector("english", Article.summary))
     )
     query = func.to_tsquery("english", "python & guide")
-    
+
     results = await execute(select(Article).where(vector.matches(query)), db_connection)
     assert len(results) == 1
     assert results[0].id == 1  # Only first article has both "python" and "guide"
@@ -135,13 +141,13 @@ async def test_weighted_text_search(db_connection: DBConnection):
             id=1,
             title="Python Guide",  # Weight A
             content="Basic Python",  # Weight B
-            summary="Python tutorial"  # Weight C
+            summary="Python tutorial",  # Weight C
         ),
         Article(
             id=2,
             title="Programming",
             content="Python Guide",
-            summary="Guide to programming"
+            summary="Guide to programming",
         ),
     ]
     for article in articles:
@@ -154,15 +160,15 @@ async def test_weighted_text_search(db_connection: DBConnection):
         .concat(func.setweight(func.to_tsvector("english", Article.summary), "C"))
     )
     query = func.to_tsquery("english", "python & guide")
-    
+
     results = await execute(
         select((Article, func.ts_rank(vector, query).as_("rank")))
         .where(vector.matches(query))
         .order_by("rank", direction="DESC"),
-        db_connection
+        db_connection,
     )
     assert len(results) == 2
     # First article should rank higher because "Python Guide" is in title (weight A)
     assert results[0][0].id == 1
     assert results[1][0].id == 2
-    assert results[0][1] > results[1][1]  # Check that rank is higher 
+    assert results[0][1] > results[1][1]  # Check that rank is higher

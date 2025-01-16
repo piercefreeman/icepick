@@ -269,7 +269,9 @@ class QueryBuilder(Generic[P, QueryType]):
             T9 | Type[T9],
             T10 | Type[T10],
         ],
-    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]]: ...
+    ) -> QueryBuilder[
+        tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]
+    ]: ...
 
     @overload
     def select(
@@ -502,7 +504,7 @@ class QueryBuilder(Generic[P, QueryType]):
         return self  # type: ignore
 
     @allow_branching
-    def where(self, *conditions: bool):
+    def where(self, *conditions: FieldComparison | FieldComparisonGroup | bool):
         """
         Adds WHERE conditions to filter the query results. Multiple conditions are combined with AND.
         For OR conditions, use the `or_` function.
@@ -1038,11 +1040,15 @@ class QueryBuilder(Generic[P, QueryType]):
             for clause in self._order_by_clauses:
                 # Check if this is an aliased column from the select
                 for raw_field in self._select_raw:
-                    if (is_function_metadata(raw_field) and 
-                        raw_field.local_name and 
-                        raw_field.local_name in clause):
+                    if (
+                        is_function_metadata(raw_field)
+                        and raw_field.local_name
+                        and raw_field.local_name in clause
+                    ):
                         # Use the alias name instead of the function literal
-                        clause = clause.replace(str(raw_field.literal), raw_field.local_name)
+                        clause = clause.replace(
+                            str(raw_field.literal), raw_field.local_name
+                        )
                         break
                 order_clauses.append(clause)
             query += " ORDER BY " + ", ".join(order_clauses)
