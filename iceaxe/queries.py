@@ -269,9 +269,7 @@ class QueryBuilder(Generic[P, QueryType]):
             T9 | Type[T9],
             T10 | Type[T10],
         ],
-    ) -> QueryBuilder[
-        tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]
-    ]: ...
+    ) -> QueryBuilder[tuple[T, T2, T3, T4, T5, T6, T7, T8, T9, T10], Literal["SELECT"]]: ...
 
     @overload
     def select(
@@ -466,16 +464,20 @@ class QueryBuilder(Generic[P, QueryType]):
                 # that it's captured in the raw query.
                 self._select_raw.append(field)
             elif is_function_metadata(field):
-                # We need to handle func.* functions explicitly here versus delegating
-                # to a SQLGenerator because we need to own the local name aliasing logic
-                field.local_name = f"aggregate_{self._select_aggregate_count}"
-                local_name_token = QueryLiteral(field.local_name)
-
-                self._select_fields.append(
-                    QueryLiteral(f"{field.literal} AS {local_name_token}")
-                )
+                # Handle function metadata with or without alias
+                if field.local_name:
+                    # If there's an alias, use it
+                    self._select_fields.append(
+                        QueryLiteral(f"{field.literal} AS {field.local_name}")
+                    )
+                else:
+                    # If no alias, generate one
+                    field.local_name = f"aggregate_{self._select_aggregate_count}"
+                    self._select_fields.append(
+                        QueryLiteral(f"{field.literal} AS {field.local_name}")
+                    )
+                    self._select_aggregate_count += 1
                 self._select_raw.append(field)
-                self._select_aggregate_count += 1
 
     @allow_branching
     def update(self, model: Type[TableBase]) -> QueryBuilder[None, Literal["UPDATE"]]:
@@ -591,17 +593,33 @@ class QueryBuilder(Generic[P, QueryType]):
             .group_by(User.name)
             .order_by(func.count(Post.id), "DESC")
         )
+
+        # Sort by aliased column
+        query = (
+            QueryBuilder()
+            .select((User, func.count(Post.id).as_("post_count")))
+            .join(Post, Post.user_id == User.id)
+            .group_by(User.name)
+            .order_by("post_count", "DESC")
+        )
         ```
 
-        :param field: The field to sort by (must be a column or function)
+        :param field: The field to sort by (can be a column, function, or string for aliased columns)
         :param direction: The sort direction, either "ASC" or "DESC"
         :return: The QueryBuilder instance for method chaining
-
         """
         if is_column(field):
             field_token, _ = field.to_query()
         elif is_function_metadata(field):
             field_token = field.literal
+        elif isinstance(field, str):
+            # Check if this is an alias from a selected function
+            for raw_field in self._select_raw:
+                if is_function_metadata(raw_field) and raw_field.local_name == field:
+                    field_token = raw_field.literal
+                    break
+            else:
+                field_token = QueryLiteral(field)
         else:
             raise ValueError(f"Invalid order by field: {field}")
 
@@ -1015,7 +1033,19 @@ class QueryBuilder(Generic[P, QueryType]):
                 )
 
         if self._order_by_clauses:
-            query += " ORDER BY " + ", ".join(self._order_by_clauses)
+            # For each order by clause, check if it's an alias and use the alias name
+            order_clauses = []
+            for clause in self._order_by_clauses:
+                # Check if this is an aliased column from the select
+                for raw_field in self._select_raw:
+                    if (is_function_metadata(raw_field) and 
+                        raw_field.local_name and 
+                        raw_field.local_name in clause):
+                        # Use the alias name instead of the function literal
+                        clause = clause.replace(str(raw_field.literal), raw_field.local_name)
+                        break
+                order_clauses.append(clause)
+            query += " ORDER BY " + ", ".join(order_clauses)
 
         if self._limit_value is not None:
             query += f" LIMIT {self._limit_value}"

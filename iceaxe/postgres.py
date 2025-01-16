@@ -59,6 +59,42 @@ class PostgresTime(PostgresFieldBase):
     """
 
 
+class PostgresFullText(PostgresFieldBase):
+    """
+    Extension to Python's string type that specifies additional Postgres-specific configuration
+    for full-text search. Used to customize the behavior of text search fields in Postgres.
+
+    ```python {{sticky: True}}
+    from iceaxe import TableBase, Field
+    from iceaxe.postgres import PostgresFullText
+
+    class Article(TableBase):
+        id: int = Field(primary_key=True)
+        title: str = Field(postgres_config=PostgresFullText(
+            language="english",
+            weight="A"
+        ))
+        content: str = Field(postgres_config=PostgresFullText(
+            language="english",
+            weight="B"
+        ))
+    ```
+    """
+
+    language: str = "english"
+    """
+    The language to use for text search operations.
+    Defaults to 'english'.
+    """
+
+    weight: str = "D"
+    """
+    The weight to assign to matches in this column (A, B, C, or D).
+    A is highest priority, D is lowest.
+    Defaults to 'D'.
+    """
+
+
 ForeignKeyModifications = Literal[
     "RESTRICT", "NO ACTION", "CASCADE", "SET DEFAULT", "SET NULL"
 ]
