@@ -58,25 +58,31 @@ async def db_connection():
         )
     """)
 
-    # Create text search indexes for article table
     # Create each index separately to handle errors better
-    await conn.conn.execute(
-        "CREATE INDEX IF NOT EXISTS article_title_tsv_idx ON article USING GIN (to_tsvector('english', title))"
-    )
-    await conn.conn.execute(
-        "CREATE INDEX IF NOT EXISTS article_content_tsv_idx ON article USING GIN (to_tsvector('english', content))"
-    )
-    await conn.conn.execute(
-        "CREATE INDEX IF NOT EXISTS article_summary_tsv_idx ON article USING GIN (to_tsvector('english', summary))"
-    )
-
     yield conn
+
     # Drop all tables after tests
     await conn.conn.execute("DROP TABLE IF EXISTS artifactdemo CASCADE")
     await conn.conn.execute("DROP TABLE IF EXISTS userdemo CASCADE")
     await conn.conn.execute("DROP TABLE IF EXISTS complexdemo CASCADE")
     await conn.conn.execute("DROP TABLE IF EXISTS article CASCADE")
     await conn.conn.close()
+
+
+@pytest_asyncio.fixture()
+async def indexed_db_connection(db_connection: DBConnection):
+    await db_connection.conn.execute(
+        "CREATE INDEX IF NOT EXISTS article_title_tsv_idx ON article USING GIN (to_tsvector('english', title))"
+    )
+    await db_connection.conn.execute(
+        "CREATE INDEX IF NOT EXISTS article_content_tsv_idx ON article USING GIN (to_tsvector('english', content))"
+    )
+    await db_connection.conn.execute(
+        "CREATE INDEX IF NOT EXISTS article_summary_tsv_idx ON article USING GIN (to_tsvector('english', summary))"
+    )
+
+    yield db_connection
+
 
 
 @pytest_asyncio.fixture(autouse=True)

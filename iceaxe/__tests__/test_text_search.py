@@ -35,7 +35,7 @@ async def execute(
 
 
 @pytest.mark.asyncio
-async def test_basic_text_search(db_connection: DBConnection):
+async def test_basic_text_search(indexed_db_connection: DBConnection):
     """Test basic text search functionality using query builder."""
     # Create test data
     articles = [
@@ -48,14 +48,14 @@ async def test_basic_text_search(db_connection: DBConnection):
         Article(id=3, title="Web Development", content="Building web apps with Python"),
     ]
     for article in articles:
-        await article.save(db_connection)
+        await article.save(indexed_db_connection)
 
     # Search in title only
     title_vector = func.to_tsvector("english", Article.title)
     query = func.to_tsquery("english", "python")
 
     results = await execute(
-        select(Article).where(title_vector.matches(query)), db_connection
+        select(Article).where(title_vector.matches(query)), indexed_db_connection
     )
     assert len(results) == 1
     assert results[0].id == 1
@@ -63,13 +63,13 @@ async def test_basic_text_search(db_connection: DBConnection):
     # Search in content only
     content_vector = func.to_tsvector("english", Article.content)
     results = await execute(
-        select(Article).where(content_vector.matches(query)), db_connection
+        select(Article).where(content_vector.matches(query)), indexed_db_connection
     )
     assert len(results) == 3  # All articles mention Python in content
 
 
 @pytest.mark.asyncio
-async def test_complex_text_search(db_connection: DBConnection):
+async def test_complex_text_search(indexed_db_connection: DBConnection):
     """Test complex text search queries with boolean operators."""
     articles = [
         Article(id=1, title="Python Programming", content="Learn programming basics"),
@@ -79,29 +79,29 @@ async def test_complex_text_search(db_connection: DBConnection):
         ),
     ]
     for article in articles:
-        await article.save(db_connection)
+        await article.save(indexed_db_connection)
 
     # Test AND operator
     vector = func.to_tsvector("english", Article.title)
     query = func.to_tsquery("english", "python & programming")
-    results = await execute(select(Article).where(vector.matches(query)), db_connection)
+    results = await execute(select(Article).where(vector.matches(query)), indexed_db_connection)
     assert len(results) == 1
     assert results[0].id == 1
 
     # Test OR operator
     query = func.to_tsquery("english", "python | javascript")
-    results = await execute(select(Article).where(vector.matches(query)), db_connection)
+    results = await execute(select(Article).where(vector.matches(query)), indexed_db_connection)
     assert len(results) == 3
     assert {r.id for r in results} == {1, 2, 3}
 
     # Test NOT operator
     query = func.to_tsquery("english", "programming & !python")
-    results = await execute(select(Article).where(vector.matches(query)), db_connection)
+    results = await execute(select(Article).where(vector.matches(query)), indexed_db_connection)
     assert len(results) == 0  # No articles have "programming" without "python" in title
 
 
 @pytest.mark.asyncio
-async def test_combined_field_search(db_connection: DBConnection):
+async def test_combined_field_search(indexed_db_connection: DBConnection):
     """Test searching across multiple fields."""
     articles = [
         Article(
@@ -118,7 +118,7 @@ async def test_combined_field_search(db_connection: DBConnection):
         ),
     ]
     for article in articles:
-        await article.save(db_connection)
+        await article.save(indexed_db_connection)
 
     # Search across all fields
     vector = (
@@ -128,13 +128,13 @@ async def test_combined_field_search(db_connection: DBConnection):
     )
     query = func.to_tsquery("english", "python & guide")
 
-    results = await execute(select(Article).where(vector.matches(query)), db_connection)
+    results = await execute(select(Article).where(vector.matches(query)), indexed_db_connection)
     assert len(results) == 1
     assert results[0].id == 1  # Only first article has both "python" and "guide"
 
 
 @pytest.mark.asyncio
-async def test_weighted_text_search(db_connection: DBConnection):
+async def test_weighted_text_search(indexed_db_connection: DBConnection):
     """Test text search with weighted columns."""
     articles = [
         Article(
@@ -151,7 +151,7 @@ async def test_weighted_text_search(db_connection: DBConnection):
         ),
     ]
     for article in articles:
-        await article.save(db_connection)
+        await article.save(indexed_db_connection)
 
     # Search with weights
     vector = (
@@ -165,7 +165,7 @@ async def test_weighted_text_search(db_connection: DBConnection):
         select((Article, func.ts_rank(vector, query).as_("rank")))
         .where(vector.matches(query))
         .order_by("rank", direction="DESC"),
-        db_connection,
+        indexed_db_connection,
     )
     assert len(results) == 2
     # First article should rank higher because "Python Guide" is in title (weight A)
