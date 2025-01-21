@@ -3,9 +3,10 @@ from typing import List, Literal, Optional, TypeVar, cast
 import pytest
 
 from iceaxe import Field, TableBase, func, select
-from iceaxe.postgres import PostgresFullText
+from iceaxe.postgres import PostgresFullText, LexemePriority
 from iceaxe.queries import QueryBuilder
 from iceaxe.session import DBConnection
+from iceaxe.field import DBFieldInfo
 
 T = TypeVar("T")
 
@@ -172,3 +173,61 @@ async def test_weighted_text_search(indexed_db_connection: DBConnection):
     assert results[0][0].id == 1
     assert results[1][0].id == 2
     assert results[0][1] > results[1][1]  # Check that rank is higher
+
+
+@pytest.mark.asyncio
+async def test_weight_priority_variants(indexed_db_connection: DBConnection):
+    """Test text search using both string literals and LexemePriority enum for weights."""
+    articles = [
+        Article(
+            id=1,
+            title="Python Guide",  # Weight A (string literal)
+            content="Basic Python",  # Weight B (enum)
+            summary="Python tutorial",  # Weight C (enum)
+        ),
+        Article(
+            id=2,
+            title="Programming",
+            content="Python Guide",
+            summary="Guide to programming",
+        ),
+    ]
+
+    # Create a variant of Article using the enum
+    class ArticleWithEnum(TableBase):
+        id: int = Field(primary_key=True)
+        title: str = Field(postgres_config=PostgresFullText(language="english", weight=LexemePriority.HIGHEST))
+        content: str = Field(postgres_config=PostgresFullText(language="english", weight=LexemePriority.HIGH))
+        summary: Optional[str] = Field(
+            default=None, 
+            postgres_config=PostgresFullText(language="english", weight=LexemePriority.LOW)
+        )
+
+    # Verify both models can be created and weights are equivalent
+    assert cast(PostgresFullText, cast(DBFieldInfo, Article.model_fields["title"]).postgres_config).weight == cast(PostgresFullText, cast(DBFieldInfo, ArticleWithEnum.model_fields["title"]).postgres_config).weight == "A"
+    assert cast(PostgresFullText, cast(DBFieldInfo, Article.model_fields["content"]).postgres_config).weight == cast(PostgresFullText, cast(DBFieldInfo, ArticleWithEnum.model_fields["content"]).postgres_config).weight == "B"
+    assert cast(PostgresFullText, cast(DBFieldInfo, Article.model_fields["summary"]).postgres_config).weight == cast(PostgresFullText, cast(DBFieldInfo, ArticleWithEnum.model_fields["summary"]).postgres_config).weight == "C"
+
+    # Save and query using the original Article model to verify functionality
+    for article in articles:
+        await article.save(indexed_db_connection)
+
+    vector = (
+        func.setweight(func.to_tsvector("english", Article.title), LexemePriority.HIGHEST)
+        .concat(func.setweight(func.to_tsvector("english", Article.content), LexemePriority.HIGH))
+        .concat(func.setweight(func.to_tsvector("english", Article.summary), LexemePriority.LOW))
+    )
+    query = func.to_tsquery("english", "python & guide")
+
+    results = await execute(
+        select((Article, func.ts_rank(vector, query).as_("rank")))
+        .where(vector.matches(query))
+        .order_by("rank", direction="DESC"),
+        indexed_db_connection,
+    )
+    
+    assert len(results) == 2
+    # First article should rank higher because "Python Guide" is in title (HIGHEST weight)
+    assert results[0][0].id == 1
+    assert results[1][0].id == 2
+    assert results[0][1] > results[1][1]
